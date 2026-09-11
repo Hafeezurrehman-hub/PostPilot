@@ -104,6 +104,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {navItems.find(i => i.href === pathname)?.label || 'PostPilot'}
           </div>
           <div className="pp-topbar__right">
+            <Link href="/dashboard/pricing" className="pp-btn pp-btn--purple pp-btn--sm pp-upgrade-btn">
+              <Zap size={14} />
+              Upgrade
+            </Link>
             {/* Theme Toggle */}
             <button className="pp-theme-toggle" onClick={toggleTheme} title="Toggle theme">
               {theme === 'dark' ? <Sun size={17} strokeWidth={1.8} /> : <Moon size={17} strokeWidth={1.8} />}
