@@ -15,7 +15,6 @@ const LINKS = [
   { href: "/dashboard/listening", label: "Listen" },
   { href: "/dashboard/bulk", label: "Bulk" },
   { href: "/dashboard/links", label: "Links" },
-  { href: "/dashboard/expenses", label: "Expenses" },
   { href: "/dashboard/teams", label: "Teams" },
 ];
 

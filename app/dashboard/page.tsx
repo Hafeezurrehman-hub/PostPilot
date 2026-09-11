@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { PenSquare, Users, BarChart2, Zap, ArrowRight, Clock, CheckCircle2, AlertCircle } from 'lucide-react'
+import OnboardingBanner from '@/components/OnboardingBanner'
 
 const stats = [
   { label: 'Posts Published', value: '0', icon: CheckCircle2, color: 'var(--pp-green)' },
@@ -22,6 +23,8 @@ const platforms = [
 export default function DashboardPage() {
   return (
     <div className="pp-dashboard">
+
+      <OnboardingBanner />
 
       {/* Welcome */}
       <div className="pp-welcome">
