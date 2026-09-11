@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import DashboardNav from "@/components/DashboardNav";
-import AiCaptionGenerator from "@/components/AiCaptionGenerator";
+import toast from "react-hot-toast";
+import { Sparkles, ImagePlus, X, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { platformIcon, platformColor } from "@/components/PlatformIcons";
-import { ALL_PLATFORMS } from "@/lib/platform-data";
 
-const PLATFORMS = ALL_PLATFORMS.map((p) => ({
-  id: p.id,
-  name: p.name,
-  limit: p.charLimit ?? 10000,
-}));
+const PLATFORMS = [
+  { id: "twitter", name: "Twitter / X", limit: 280 },
+  { id: "linkedin", name: "LinkedIn", limit: 3000 },
+  { id: "instagram", name: "Instagram", limit: 2200 },
+  { id: "facebook", name: "Facebook", limit: 63206 },
+  { id: "tiktok", name: "TikTok", limit: 2200 },
+];
 
 export default function NewPostPage() {
   const [text, setText] = useState("");
@@ -21,19 +21,12 @@ export default function NewPostPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
-  const [userEmail, setUserEmail] = useState<string | undefined>();
-
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [publishResult, setPublishResult] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const router = useRouter();
 
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => setUserEmail(data.user?.email));
-  }, []);
+  const router = useRouter();
 
   const togglePlatform = (id: string) => {
     setSelected((prev) =>
@@ -54,340 +47,306 @@ export default function NewPostPage() {
     setImagePreview(null);
   };
 
-  const saveAndPublish = async () => {
-    if (!text.trim()) return;
-    setPublishing(true);
-    setErrorMsg(null);
-    setPublishResult(null);
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    // Step 1: Image upload (agar hai)
-    let mediaUrl: string | null = null;
-    if (imageFile) {
-      const fileExt = imageFile.name.split(".").pop();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage
-        .from("post-media")
-        .upload(filePath, imageFile);
-      if (uploadError) {
-        setPublishing(false);
-        setErrorMsg("Image upload failed.");
-        return;
-      }
-      const { data: publicUrlData } = supabase.storage
-        .from("post-media")
-        .getPublicUrl(filePath);
-      mediaUrl = publicUrlData.publicUrl;
-    }
-
-    // Step 2: Post save karo (as draft, publish ke baad status update hoga)
-    const { data: newPost, error: insertError } = await supabase
-      .from("posts")
-      .insert({
-        user_id: user.id,
-        content: text,
-        media_url: mediaUrl,
-        platforms: selected,
-        status: "draft",
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !newPost) {
-      setPublishing(false);
-      setErrorMsg("Failed to save post.");
-      return;
-    }
-
-    // Step 3: Publish karo
-    const res = await fetch("/api/publish", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postId: newPost.id }),
-    });
-    const data = await res.json();
-
-    setPublishing(false);
-
-    if (!res.ok) {
-      setErrorMsg(data.error ?? "Publish failed.");
-      return;
-    }
-
-    setPublishResult(data.message ?? "Done!");
-    setTimeout(() => router.push("/dashboard"), 1500);
-  };
-
-  const saveDraft = async () => {
-    if (!text.trim()) return;
-    setSaving(true);
-    setErrorMsg(null);
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    let mediaUrl: string | null = null;
-
-    // Agar image select ki hai, Supabase Storage me upload karo
-    if (imageFile) {
-      const fileExt = imageFile.name.split(".").pop();
-      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("post-media")
-        .upload(filePath, imageFile);
-
-      if (uploadError) {
-        setSaving(false);
-        setErrorMsg(
-          "Image upload failed — check that the 'post-media' bucket exists in Supabase (see instructions in supabase/schema.sql)."
-        );
-        return;
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from("post-media")
-        .getPublicUrl(filePath);
-      mediaUrl = publicUrlData.publicUrl;
-    }
-
-    const status = scheduleEnabled && scheduleDate ? "scheduled" : "draft";
-
-    const { error: insertError } = await supabase.from("posts").insert({
-      user_id: user.id,
-      content: text,
-      media_url: mediaUrl,
-      platforms: selected,
-      status,
-      scheduled_for:
-        scheduleEnabled && scheduleDate ? new Date(scheduleDate).toISOString() : null,
-    });
-
-    setSaving(false);
-
-    if (insertError) {
-      setErrorMsg("Failed to save post. Please try again.");
-      return;
-    }
-
-    setSaved(true);
-    setTimeout(() => router.push("/dashboard"), 800);
-  };
-
   const tightestLimit = PLATFORMS.filter((p) => selected.includes(p.id)).reduce(
     (min, p) => Math.min(min, p.limit),
     Infinity
   );
 
-  const [minDateTime] = useState(() =>
-    new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)
-  );
+  const generateCaption = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    const toastId = toast.loading("Generating caption...");
+    try {
+      const res = await fetch("/api/ai/caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt, platform: selected[0] ?? "twitter" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed");
+      setText(data.caption ?? "");
+      toast.success("Caption generated", { id: toastId });
+    } catch (e) {
+      console.error(e);
+      toast.error("Couldn't generate caption", { id: toastId });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const uploadImageIfNeeded = async (userId: string) => {
+    if (!imageFile) return null;
+    const supabase = createClient();
+    const fileExt = imageFile.name.split(".").pop();
+    const filePath = `${userId}/${Date.now()}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from("post-media")
+      .upload(filePath, imageFile);
+    if (uploadError) throw new Error("Image upload failed");
+    const { data } = supabase.storage.from("post-media").getPublicUrl(filePath);
+    return data.publicUrl;
+  };
+
+  const handlePublish = async () => {
+    if (!text.trim() || selected.length === 0) return;
+    setPublishing(true);
+    const toastId = toast.loading("Publishing post...");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const mediaUrl = await uploadImageIfNeeded(user.id);
+
+      const { data: newPost, error: insertError } = await supabase
+        .from("posts")
+        .insert({
+          user_id: user.id,
+          content: text,
+          media_url: mediaUrl,
+          platforms: selected,
+          status: "draft",
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !newPost) throw new Error("Failed to save post");
+
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId: newPost.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Publish failed");
+
+      toast.success(data.message ?? "Post published!", { id: toastId });
+      setTimeout(() => router.push("/dashboard"), 1200);
+    } catch (e: any) {
+      toast.error(e.message ?? "Something went wrong", { id: toastId });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (!text.trim()) return;
+    setSaving(true);
+    const isScheduling = scheduleEnabled && scheduleDate;
+    const toastId = toast.loading(isScheduling ? "Scheduling post..." : "Saving draft...");
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+
+      const mediaUrl = await uploadImageIfNeeded(user.id);
+      const status = isScheduling ? "scheduled" : "draft";
+
+      const { error: insertError } = await supabase.from("posts").insert({
+        user_id: user.id,
+        content: text,
+        media_url: mediaUrl,
+        platforms: selected,
+        status,
+        scheduled_for: isScheduling ? new Date(scheduleDate).toISOString() : null,
+      });
+
+      if (insertError) throw new Error("Failed to save post");
+
+      toast.success(isScheduling ? "Post scheduled" : "Draft saved", { id: toastId });
+      setTimeout(() => router.push("/dashboard"), 800);
+    } catch (e: any) {
+      toast.error(e.message ?? "Something went wrong", { id: toastId });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const overLimit = tightestLimit !== Infinity && text.length > tightestLimit;
 
   return (
-    <main className="flex-1 bg-slate-950 text-slate-100">
-      <DashboardNav email={userEmail} />
-      <div className="mx-auto max-w-3xl px-6 py-10">
-        <h1 className="text-xl font-semibold text-white">Create New Post</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Select platforms, write your post, then publish now or save as a draft.
-        </p>
+    <div className="pp-composer">
+      <div className="pp-composer__header">
+        <h1 className="pp-composer__title">Create New Post</h1>
+      </div>
 
-        {/* Platform selection */}
-        <div className="mt-6">
-          <p className="text-xs text-slate-500 mb-2">Select platforms to post to</p>
-          <div className="flex flex-wrap gap-2">
+      <div className="pp-composer__body">
+        {/* Main column */}
+        <div>
+          {/* Platform toggles */}
+          <div className="pp-platform-toggles">
             {PLATFORMS.map((p) => {
-              const Icon = platformIcon(p.id);
-              const color = platformColor(p.id);
-              const isSelected = selected.includes(p.id);
+              const isActive = selected.includes(p.id);
               return (
                 <button
                   key={p.id}
+                  type="button"
+                  className={`pp-toggle ${isActive ? "pp-toggle--active" : ""}`}
                   onClick={() => togglePlatform(p.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium border transition-all ${
-                    isSelected
-                      ? "border-indigo-500 bg-indigo-500/10 text-white"
-                      : "border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300"
-                  }`}
                 >
-                  {Icon && (
-                    <Icon
-                      className="w-3.5 h-3.5"
-                      style={{ color: isSelected ? color : undefined }}
-                    />
-                  )}
+                  <span className="pp-toggle__dot" />
                   {p.name}
                 </button>
               );
             })}
           </div>
-        </div>
 
-        {/* Editor */}
-        <div className="mt-6">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="What do you want to share today?"
-            className="w-full resize-none rounded-md border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <div className="mt-1 flex justify-end text-xs text-slate-500">
-            {text.length}
-            {tightestLimit !== Infinity && ` / ${tightestLimit}`} characters
-            {tightestLimit !== Infinity && text.length > tightestLimit && (
-              <span className="ml-2 text-rose-400">
-                Exceeds the selected platform's limit
-              </span>
-            )}
+          {/* AI bar */}
+          <div className="pp-ai-bar" style={{ marginBottom: 14 }}>
+            <span className="pp-ai-bar__label">
+              <Sparkles size={13} /> AI
+            </span>
+            <input
+              className="pp-ai-bar__input"
+              placeholder="Describe your post and let AI write the caption..."
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && generateCaption()}
+              disabled={aiLoading}
+            />
+            <button
+              type="button"
+              className="pp-icon-btn"
+              onClick={generateCaption}
+              disabled={aiLoading || !aiPrompt.trim()}
+              title="Generate caption"
+            >
+              <Send size={15} />
+            </button>
           </div>
 
-          {/* AI Caption Generator */}
-          {selected.length > 0 && (
-            <AiCaptionGenerator
-              platform={selected[0]}
-              onInsert={(caption) => setText(caption)}
+          {/* Compose box */}
+          <div className="pp-compose-box">
+            <div className="pp-compose-box__label">Post content</div>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What do you want to share today?"
             />
-          )}
-        </div>
+            <div className="pp-compose-box__footer">
+              <span className={`pp-compose-box__count ${overLimit ? "pp-char-danger" : ""}`}>
+                {text.length}
+                {tightestLimit !== Infinity && ` / ${tightestLimit}`} characters
+                {overLimit && " — exceeds limit"}
+              </span>
+              <div className="pp-compose-box__actions">
+                {imagePreview ? (
+                  <button type="button" className="pp-icon-btn" onClick={removeImage} title="Remove image">
+                    <X size={15} />
+                  </button>
+                ) : (
+                  <label className="pp-icon-btn" style={{ cursor: "pointer" }} title="Add image">
+                    <ImagePlus size={15} />
+                    <input type="file" accept="image/*" onChange={handleImagePick} style={{ display: "none" }} />
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
 
-        {/* Image upload */}
-        <div className="mt-4">
-          {imagePreview ? (
-            <div className="relative inline-block">
+          {imagePreview && (
+            <div style={{ marginTop: 12 }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imagePreview}
                 alt="Selected"
-                className="max-h-56 rounded-lg border border-slate-800"
+                style={{ maxHeight: 200, borderRadius: "var(--pp-radius-sm)", border: "1px solid var(--pp-border)" }}
               />
-              <button
-                onClick={removeImage}
-                className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-slate-800 text-slate-300 text-xs hover:bg-slate-700"
-              >
-                ✕
-              </button>
             </div>
-          ) : (
-            <label className="flex items-center gap-2 w-fit cursor-pointer rounded-md border border-dashed border-slate-700 px-4 py-2.5 text-sm text-slate-400 hover:border-slate-500 hover:text-slate-300">
-              <span>+ Add Image</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImagePick}
-                className="hidden"
-              />
-            </label>
+          )}
+
+          {/* Preview */}
+          {selected.length > 0 && (
+            <div style={{ marginTop: 18 }}>
+              <div className="pp-side-card__title">Preview</div>
+              <div className="pp-preview">
+                {text || "Your preview will appear here"}
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Schedule */}
-        <div className="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-          <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={scheduleEnabled}
-              onChange={(e) => setScheduleEnabled(e.target.checked)}
-              className="rounded border-slate-700 bg-slate-800 text-indigo-500 focus:ring-indigo-500"
-            />
-            Schedule for later
-          </label>
-          {scheduleEnabled && (
-            <input
-              type="datetime-local"
-              min={minDateTime}
-              value={scheduleDate}
-              onChange={(e) => setScheduleDate(e.target.value)}
-              className="mt-3 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          )}
-          <p className="mt-2 text-xs text-slate-600">
-            Scheduled posts will be published automatically at the set time.
-          </p>
-        </div>
-
-        {/* Preview per platform */}
-        {selected.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-sm font-medium text-slate-300 mb-3">Preview</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {PLATFORMS.filter((p) => selected.includes(p.id)).map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-lg border border-slate-800 bg-slate-900 p-4"
-                >
-                  <p className="text-xs font-medium text-indigo-400 mb-2">{p.name}</p>
-                  {imagePreview && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagePreview}
-                      alt=""
-                      className="mb-2 max-h-32 rounded-md border border-slate-800"
-                    />
-                  )}
-                  <p className="text-sm text-slate-300 whitespace-pre-wrap break-words">
-                    {text.length > p.limit
-                      ? text.slice(0, p.limit) + "…"
-                      : text || (
-                          <span className="text-slate-600">Your preview will appear here</span>
-                        )}
-                  </p>
-                </div>
-              ))}
-            </div>
+        {/* Side panel */}
+        <div className="pp-compose-side">
+          <div className="pp-side-card">
+            <div className="pp-side-card__title">Posting targets</div>
+            {selected.length === 0 ? (
+              <p style={{ fontSize: "0.8rem", color: "var(--pp-muted2)" }}>
+                No platforms selected yet.
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {PLATFORMS.filter((p) => selected.includes(p.id)).map((p) => (
+                  <span key={p.id} style={{ fontSize: "0.83rem", color: "var(--pp-text)" }}>
+                    • {p.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
 
-        {errorMsg && <p className="mt-4 text-sm text-rose-400">{errorMsg}</p>}
+          <div className="pp-side-card">
+            <div className="pp-side-card__title">Schedule</div>
+            <label className="pp-schedule-row">
+              <input
+                type="checkbox"
+                checked={scheduleEnabled}
+                onChange={(e) => setScheduleEnabled(e.target.checked)}
+              />
+              Schedule for later
+            </label>
+            {scheduleEnabled && (
+              <input
+                type="datetime-local"
+                className="pp-input"
+                style={{ marginTop: 10 }}
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+              />
+            )}
+          </div>
 
-        {publishResult && <p className="mt-4 text-sm text-emerald-400">{publishResult}</p>}
+          <div className="pp-side-card">
+            <div className="pp-side-card__title">Tip</div>
+            <p style={{ fontSize: "0.8rem", color: "var(--pp-muted2)", lineHeight: 1.5 }}>
+              Posts published between 9–11 AM tend to get the best engagement.
+            </p>
+          </div>
 
-        <div className="mt-10 flex gap-3">
           <button
-            onClick={saveAndPublish}
-            disabled={
-              publishing ||
-              !text.trim() ||
-              selected.length === 0 ||
-              (tightestLimit !== Infinity && text.length > tightestLimit)
-            }
-            className="rounded-md bg-indigo-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            type="button"
+            className="pp-btn pp-btn--primary"
+            onClick={handlePublish}
+            disabled={publishing || !text.trim() || selected.length === 0 || overLimit}
           >
-            {publishing ? "Publishing..." : "Publish"}
+            {publishing ? "Publishing..." : "Publish Now"}
           </button>
           <button
-            onClick={saveDraft}
-            disabled={
-              saving || !text.trim() || (tightestLimit !== Infinity && text.length > tightestLimit)
-            }
-            className="rounded-md border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 hover:border-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            className="pp-btn pp-btn--ghost"
+            onClick={handleSaveDraft}
+            disabled={saving || !text.trim() || overLimit}
           >
             {saving
               ? "Saving..."
-              : saved
-              ? "Saved ✓"
               : scheduleEnabled && scheduleDate
               ? "Schedule Post"
               : "Save Draft"}
           </button>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

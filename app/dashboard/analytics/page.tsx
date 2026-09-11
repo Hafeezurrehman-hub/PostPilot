@@ -1,137 +1,190 @@
-import DashboardNav from "@/components/DashboardNav";
-import { createClient } from "@/lib/supabase/server";
-import Link from "next/link";
+'use client'
 
-function formatNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
-}
+import { useState } from 'react'
+import {
+  BarChart2, TrendingUp, Users, FileText,
+  Calendar, ArrowUp, ArrowDown, Minus,
+  Twitter, Linkedin, Instagram, Facebook,
+  Youtube, Clock
+} from 'lucide-react'
 
-export default async function AnalyticsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+const DATE_FILTERS = ['Last 7 days', 'Last 30 days', 'Last 90 days', 'All time']
 
-  // User ke posts nikalo with analytics
-  const { data: posts } = await supabase
-    .from("posts")
-    .select("id, content, platforms, status, created_at, published_at")
-    .eq("user_id", user?.id ?? "")
-    .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(20);
+const STATS = [
+  { label: 'Total Posts', value: '0', change: 0, icon: FileText, color: 'var(--pp-indigo)' },
+  { label: 'Total Reach', value: '0', change: 0, icon: TrendingUp, color: 'var(--pp-purple)' },
+  { label: 'Platforms Used', value: '0', change: 0, icon: Users, color: 'var(--pp-green)' },
+  { label: 'Scheduled', value: '0', change: 0, icon: Clock, color: 'var(--pp-amber)' },
+]
 
-  const postIds = (posts ?? []).map((p) => p.id);
+const PLATFORM_STATS = [
+  { name: 'Twitter / X', icon: '𝕏', color: '#1D9BF0', posts: 0, reach: 0, engagement: 0 },
+  { name: 'LinkedIn',    icon: 'in', color: '#0A66C2', posts: 0, reach: 0, engagement: 0 },
+  { name: 'Instagram',   icon: '📸', color: '#E1306C', posts: 0, reach: 0, engagement: 0 },
+  { name: 'Facebook',    icon: 'f',  color: '#1877F2', posts: 0, reach: 0, engagement: 0 },
+  { name: 'TikTok',      icon: '♪',  color: '#FF0050', posts: 0, reach: 0, engagement: 0 },
+  { name: 'YouTube',     icon: '▶',  color: '#FF0000', posts: 0, reach: 0, engagement: 0 },
+]
 
-  // Analytics data nikalo
-  const { data: analytics } = await supabase
-    .from("post_analytics")
-    .select("*")
-    .in("post_id", postIds.length > 0 ? postIds : [""]);
+const RECENT_POSTS = [
+  // Empty for now — will populate from Supabase
+]
 
-  // Har post ke liye aggregated metrics
-  const postMetrics = (posts ?? []).map((post) => {
-    const postAnalytics = (analytics ?? []).filter((a) => a.post_id === post.id);
-    const totalImpressions = postAnalytics.reduce((s, a) => s + (a.impressions ?? 0), 0);
-    const totalEngagements = postAnalytics.reduce((s, a) => s + (a.engagements ?? 0), 0);
-    const totalLikes = postAnalytics.reduce((s, a) => s + (a.likes ?? 0), 0);
-    const totalComments = postAnalytics.reduce((s, a) => s + (a.comments ?? 0), 0);
-    const totalShares = postAnalytics.reduce((s, a) => s + (a.shares ?? 0), 0);
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const CHART_DATA = [0, 0, 0, 0, 0, 0, 0]
+const MAX_VAL = Math.max(...CHART_DATA, 1)
 
-    return {
-      ...post,
-      impressions: totalImpressions,
-      engagements: totalEngagements,
-      likes: totalLikes,
-      comments: totalComments,
-      shares: totalShares,
-      engagementRate: totalImpressions > 0
-        ? Math.round((totalEngagements / totalImpressions) * 100 * 100) / 100
-        : 0,
-      platformsCount: postAnalytics.length,
-    };
-  });
-
-  // Overall stats
-  const totalImpressions = postMetrics.reduce((s, p) => s + p.impressions, 0);
-  const totalEngagements = postMetrics.reduce((s, p) => s + p.engagements, 0);
-  const totalLikes = postMetrics.reduce((s, p) => s + p.likes, 0);
-  const totalComments = postMetrics.reduce((s, p) => s + p.comments, 0);
-  const totalShares = postMetrics.reduce((s, p) => s + p.shares, 0);
-  const avgEngagementRate = totalImpressions > 0
-    ? Math.round((totalEngagements / totalImpressions) * 100 * 100) / 100
-    : 0;
+export default function AnalyticsPage() {
+  const [dateFilter, setDateFilter] = useState('Last 7 days')
+  const [chartTab, setChartTab] = useState<'posts' | 'reach'>('posts')
 
   return (
-    <main className="flex-1 bg-slate-950 text-slate-100">
-      <DashboardNav email={user?.email} />
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="text-xl font-semibold text-white">Analytics</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Track how your posts perform across platforms.
-        </p>
+    <div className="pp-analytics">
 
-        {/* Overview cards */}
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <StatCard label="Total Posts" value={postMetrics.length.toString()} />
-          <StatCard label="Impressions" value={formatNumber(totalImpressions)} />
-          <StatCard label="Engagements" value={formatNumber(totalEngagements)} />
-          <StatCard label="Engagement Rate" value={`${avgEngagementRate}%`} />
+      {/* Header */}
+      <div className="pp-analytics__header">
+        <div>
+          <h1 className="pp-analytics__title">Analytics</h1>
+          <p className="pp-analytics__sub">Track your performance across all platforms.</p>
         </div>
-
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <StatCard label="Likes" value={formatNumber(totalLikes)} />
-          <StatCard label="Comments" value={formatNumber(totalComments)} />
-          <StatCard label="Shares" value={formatNumber(totalShares)} />
+        {/* Date filter */}
+        <div className="pp-date-filters">
+          {DATE_FILTERS.map(f => (
+            <button
+              key={f}
+              className={`pp-filter-tab ${dateFilter === f ? 'pp-filter-tab--active' : ''}`}
+              onClick={() => setDateFilter(f)}
+            >
+              {f}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Per-post breakdown */}
-        <div className="mt-10">
-          <h2 className="text-sm font-medium text-slate-300 mb-4">Post Performance</h2>
-          {postMetrics.length === 0 ? (
-            <div className="rounded-lg border border-slate-800 px-5 py-14 text-center">
-              <p className="text-sm text-slate-400">No published posts yet.</p>
-              <Link
-                href="/dashboard/new"
-                className="mt-3 inline-block text-sm text-indigo-400 hover:text-indigo-300"
-              >
-                Create your first post →
-              </Link>
+      {/* Stats cards */}
+      <div className="pp-analytics__stats">
+        {STATS.map(({ label, value, change, icon: Icon, color }) => (
+          <div key={label} className="pp-stat-card pp-stat-card--analytics">
+            <div className="pp-stat-card__top">
+              <div className="pp-stat-card__icon" style={{ color }}><Icon size={18} strokeWidth={1.8} /></div>
+              <div className={`pp-stat-card__change ${change > 0 ? 'pp--up' : change < 0 ? 'pp--down' : 'pp--neutral'}`}>
+                {change > 0 ? <ArrowUp size={12} /> : change < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
+                {change === 0 ? 'No data' : `${Math.abs(change)}%`}
+              </div>
             </div>
-          ) : (
-            <div className="rounded-lg border border-slate-800 divide-y divide-slate-800">
-              {postMetrics.map((post) => (
-                <div key={post.id} className="px-5 py-4">
-                  <p className="text-sm text-slate-200 line-clamp-1">{post.content}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-                    <span>👁 {formatNumber(post.impressions)} views</span>
-                    <span>❤️ {formatNumber(post.likes)} likes</span>
-                    <span>💬 {formatNumber(post.comments)} comments</span>
-                    <span>🔄 {formatNumber(post.shares)} shares</span>
-                    <span className="text-indigo-400">{post.engagementRate}% engagement</span>
-                    <span className="text-slate-600">
-                      {post.published_at
-                        ? new Date(post.published_at).toLocaleDateString()
-                        : ""}
-                    </span>
+            <div className="pp-stat-card__value">{value}</div>
+            <div className="pp-stat-card__label">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart + Platform breakdown */}
+      <div className="pp-analytics__grid">
+
+        {/* Bar Chart */}
+        <div className="pp-card pp-chart-card">
+          <div className="pp-card__header">
+            <h2 className="pp-card__title">Posts Over Time</h2>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                className={`pp-filter-tab pp-filter-tab--sm ${chartTab === 'posts' ? 'pp-filter-tab--active' : ''}`}
+                onClick={() => setChartTab('posts')}
+              >Posts</button>
+              <button
+                className={`pp-filter-tab pp-filter-tab--sm ${chartTab === 'reach' ? 'pp-filter-tab--active' : ''}`}
+                onClick={() => setChartTab('reach')}
+              >Reach</button>
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div className="pp-bar-chart">
+            <div className="pp-bar-chart__bars">
+              {CHART_DATA.map((val, i) => (
+                <div key={i} className="pp-bar-chart__col">
+                  <div className="pp-bar-chart__bar-wrap">
+                    <div
+                      className="pp-bar-chart__bar"
+                      style={{ height: `${(val / MAX_VAL) * 100}%` }}
+                    />
                   </div>
+                  <span className="pp-bar-chart__label">{DAYS[i]}</span>
                 </div>
               ))}
             </div>
-          )}
+            {/* Empty state overlay */}
+            <div className="pp-chart-empty">
+              <BarChart2 size={36} strokeWidth={1.2} />
+              <p>No data yet — start posting to see analytics</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Platform breakdown */}
+        <div className="pp-card">
+          <div className="pp-card__header">
+            <h2 className="pp-card__title">By Platform</h2>
+          </div>
+          <div className="pp-platform-breakdown">
+            {PLATFORM_STATS.map(({ name, icon, color, posts }) => (
+              <div key={name} className="pp-breakdown-row">
+                <div className="pp-breakdown-row__left">
+                  <div className="pp-platform-row__icon" style={{ background: color + '18', color }}>{icon}</div>
+                  <span className="pp-breakdown-row__name">{name}</span>
+                </div>
+                <div className="pp-breakdown-row__bar-wrap">
+                  <div
+                    className="pp-breakdown-row__bar"
+                    style={{ width: `${posts > 0 ? (posts / Math.max(...PLATFORM_STATS.map(p => p.posts), 1)) * 100 : 0}%`, background: color }}
+                  />
+                </div>
+                <span className="pp-breakdown-row__count">{posts}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    </main>
-  );
-}
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-semibold text-white">{value}</p>
+      {/* Recent posts table */}
+      <div className="pp-card">
+        <div className="pp-card__header">
+          <h2 className="pp-card__title">Recent Posts</h2>
+          <span style={{ fontSize: '0.78rem', color: 'var(--pp-muted2)' }}>{dateFilter}</span>
+        </div>
+        {RECENT_POSTS.length === 0 ? (
+          <div className="pp-empty" style={{ padding: '40px 20px' }}>
+            <FileText size={36} strokeWidth={1.2} className="pp-empty__icon" />
+            <p className="pp-empty__text">No posts yet in this period</p>
+            <a href="/dashboard/new" className="pp-btn pp-btn--primary pp-btn--sm" style={{ marginTop: 8 }}>
+              Create your first post
+            </a>
+          </div>
+        ) : (
+          <table className="pp-table">
+            <thead>
+              <tr>
+                <th>Content</th>
+                <th>Platform</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Reach</th>
+              </tr>
+            </thead>
+            <tbody>
+              {RECENT_POSTS.map((post: any, i) => (
+                <tr key={i}>
+                  <td>{post.content}</td>
+                  <td>{post.platform}</td>
+                  <td>{post.status}</td>
+                  <td>{post.date}</td>
+                  <td>{post.reach}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
     </div>
-  );
+  )
 }
