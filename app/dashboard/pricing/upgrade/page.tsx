@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, Copy, Upload, ArrowLeft, Shield, Clock, Zap } from 'lucide-react';
 
 const PLANS = {
@@ -48,12 +48,10 @@ const PAYMENT_METHODS = [
   },
 ];
 
-export default function UpgradeRequestPage({
-  searchParams,
-}: {
-  searchParams: { plan?: string };
-}) {
-  const defaultPlan = (searchParams.plan === 'team' ? 'team' : 'pro') as 'pro' | 'team';
+export default function UpgradeRequestPage() {
+  const searchParamsHook = useSearchParams();
+  const defaultPlan = (searchParamsHook.get('plan') === 'team' ? 'team' : 'pro') as 'pro' | 'team';
+
   const [selectedPlan, setSelectedPlan]     = useState<'pro' | 'team'>(defaultPlan);
   const [selectedMethod, setSelectedMethod] = useState<string>('jazzcash');
   const [txnId, setTxnId]                   = useState('');

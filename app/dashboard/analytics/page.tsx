@@ -4,8 +4,7 @@ import { useState } from 'react'
 import {
   BarChart2, TrendingUp, Users, FileText,
   Calendar, ArrowUp, ArrowDown, Minus,
-  Twitter, Linkedin, Instagram, Facebook,
-  Youtube, Clock
+    Clock
 } from 'lucide-react'
 
 const DATE_FILTERS = ['Last 7 days', 'Last 30 days', 'Last 90 days', 'All time']
@@ -26,7 +25,7 @@ const PLATFORM_STATS = [
   { name: 'YouTube',     icon: '▶',  color: '#FF0000', posts: 0, reach: 0, engagement: 0 },
 ]
 
-const RECENT_POSTS = [
+const RECENT_POSTS: any[] = [
   // Empty for now — will populate from Supabase
 ]
 
