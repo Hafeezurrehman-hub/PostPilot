@@ -6,6 +6,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const LINKS = [
+  { href: "/", label: "Home" },
   { href: "/dashboard", label: "Posts" },
   { href: "/dashboard/new", label: "New Post" },
   { href: "/dashboard/connect", label: "Accounts" },

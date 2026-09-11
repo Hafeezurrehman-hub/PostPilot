@@ -7,16 +7,17 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard, PenSquare, Users,
   BarChart2, Settings, LogOut, Zap,
-  Menu, X, Bell, Sun, Moon,
+  Menu, X, Bell, Sun, Moon, Globe,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 const navItems = [
-  { href: '/dashboard',          label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/new',      label: 'New Post',  icon: PenSquare },
-  { href: '/dashboard/connect',  label: 'Accounts',  icon: Users },
-  { href: '/dashboard/analytics',label: 'Analytics', icon: BarChart2 },
-  { href: '/dashboard/settings', label: 'Settings',  icon: Settings },
+  { href: '/',                    label: 'Home',      icon: Globe },
+  { href: '/dashboard',           label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/new',       label: 'New Post',  icon: PenSquare },
+  { href: '/dashboard/connect',   label: 'Accounts',  icon: Users },
+  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/dashboard/settings',  label: 'Settings',  icon: Settings },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
