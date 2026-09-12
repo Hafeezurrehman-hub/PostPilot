@@ -7,12 +7,12 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard, PenSquare, Users,
   BarChart2, Settings, LogOut, Zap,
-  Menu, X, Bell, Sun, Moon, Globe,
+  Menu, X, Bell, Sun, Moon,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { Toaster } from 'react-hot-toast'
 
 const navItems = [
-  { href: '/',                    label: 'Home',      icon: Globe },
   { href: '/dashboard',           label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/new',       label: 'New Post',  icon: PenSquare },
   { href: '/dashboard/connect',   label: 'Accounts',  icon: Users },
@@ -21,13 +21,12 @@ const navItems = [
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
+  const pathname  = usePathname()
+  const router    = useRouter()
+  const supabase  = createClient()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
 
-  // Load saved theme
   useEffect(() => {
     const saved = localStorage.getItem('pp-theme') as 'dark' | 'light' | null
     if (saved) {
@@ -50,6 +49,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="pp-root">
+      {/* Toast notifications */}
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: {
+            background: 'var(--pp-surface)',
+            color: 'var(--pp-text)',
+            border: '1px solid var(--pp-border)',
+            borderRadius: '10px',
+            fontSize: '0.875rem',
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          },
+          success: {
+            iconTheme: { primary: '#10B981', secondary: 'white' },
+            style: {
+              borderLeft: '3px solid #10B981',
+            },
+          },
+          error: {
+            iconTheme: { primary: '#EF4444', secondary: 'white' },
+            style: {
+              borderLeft: '3px solid #EF4444',
+            },
+          },
+          loading: {
+            iconTheme: { primary: '#6366F1', secondary: 'white' },
+            style: {
+              borderLeft: '3px solid #6366F1',
+            },
+          },
+        }}
+      />
+
       {sidebarOpen && (
         <div className="pp-overlay" onClick={() => setSidebarOpen(false)} />
       )}
@@ -109,7 +143,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <Zap size={14} />
               Upgrade
             </Link>
-            {/* Theme Toggle */}
             <button className="pp-theme-toggle" onClick={toggleTheme} title="Toggle theme">
               {theme === 'dark' ? <Sun size={17} strokeWidth={1.8} /> : <Moon size={17} strokeWidth={1.8} />}
             </button>
