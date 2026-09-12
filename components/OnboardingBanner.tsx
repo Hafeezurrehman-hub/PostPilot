@@ -15,6 +15,7 @@ export default function OnboardingBanner() {
   const [loading, setLoading] = useState(true)
   const [connectedCount, setConnectedCount] = useState<number | null>(null)
   const [postCount, setPostCount] = useState<number | null>(null)
+  const [publishedCount, setPublishedCount] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
@@ -22,18 +23,14 @@ export default function OnboardingBanner() {
       const supabase = createClient()
       const {
         data: { user },
-        error: userError,
       } = await supabase.auth.getUser()
 
-      console.log('[Onboarding] user:', user, 'userError:', userError)
-
       if (!user) {
-        console.log('[Onboarding] No user found — banner will stay hidden.')
         setLoading(false)
         return
       }
 
-      const [connResult, postResult] = await Promise.all([
+      const [connResult, postResult, publishedResult] = await Promise.all([
         supabase
           .from('platform_connections')
           .select('*', { count: 'exact', head: true })
@@ -42,13 +39,16 @@ export default function OnboardingBanner() {
           .from('posts')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id),
+        supabase
+          .from('posts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('status', 'published'),
       ])
-
-      console.log('[Onboarding] connections result:', connResult)
-      console.log('[Onboarding] posts result:', postResult)
 
       setConnectedCount(connResult.count ?? 0)
       setPostCount(postResult.count ?? 0)
+      setPublishedCount(publishedResult.count ?? 0)
       setLoading(false)
     }
     check()
@@ -65,48 +65,50 @@ export default function OnboardingBanner() {
 
   if (loading || dismissed) return null
   if (connectedCount === null) return null
-  if (connectedCount > 0 || (postCount ?? 0) > 0) return null
+  // Keep showing until the user has actually connected a platform —
+  // creating a post alone doesn't mean onboarding is done.
+  if (connectedCount > 0) return null
 
-  const stepStatus = [connectedCount > 0, (postCount ?? 0) > 0, false]
+  const stepStatus = [connectedCount > 0, (postCount ?? 0) > 0, (publishedCount ?? 0) > 0]
+  const completedSteps = stepStatus.filter(Boolean).length
 
   return (
-    <div className="pp-card" style={{
-      marginBottom: 20,
-      background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
-      border: '1px solid rgba(139,92,246,0.2)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className="pp-card pp-onboarding">
+      <div className="pp-onboarding__header">
+        <div className="pp-onboarding__title-row">
           <Zap size={16} style={{ color: 'var(--pp-purple)' }} />
           <h2 className="pp-card__title" style={{ margin: 0 }}>Welcome to PostPilot 👋</h2>
         </div>
-        <button
-          onClick={dismiss}
-          style={{ fontSize: '0.75rem', color: 'var(--pp-muted2)', background: 'none', border: 'none', cursor: 'pointer' }}
-        >
+        <button onClick={dismiss} className="pp-onboarding__skip">
           Skip for now
         </button>
       </div>
-      <p className="pp-card__desc" style={{ marginBottom: 18 }}>
-        Let's get your first post published — it only takes a minute.
+      <p className="pp-card__desc" style={{ marginBottom: 14 }}>
+        Let&apos;s get your first post published — it only takes a minute.
       </p>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Step indicator */}
+      <div className="pp-onboarding__progress">
+        {STEPS.map((step, i) => (
+          <div key={step.key} className="pp-onboarding__progress-step">
+            <div className={`pp-onboarding__progress-dot ${stepStatus[i] ? 'pp-onboarding__progress-dot--done' : ''}`}>
+              {stepStatus[i] ? <CheckCircle2 size={14} /> : i + 1}
+            </div>
+            <span className={`pp-onboarding__progress-label ${stepStatus[i] ? 'pp-onboarding__progress-label--done' : ''}`}>
+              {step.label.split(' ')[0] === 'Connect' ? 'Connect' : step.label.split(' ')[0] === 'Create' ? 'Compose' : 'Publish'}
+            </span>
+            {i < STEPS.length - 1 && (
+              <div className={`pp-onboarding__progress-line ${stepStatus[i] ? 'pp-onboarding__progress-line--done' : ''}`} />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="pp-onboarding__steps">
         {STEPS.map((step, i) => {
           const done = stepStatus[i]
           return (
-            <Link
-              key={step.key}
-              href={step.href}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 12,
-                padding: '12px 14px',
-                borderRadius: 'var(--pp-radius-sm)',
-                border: '1px solid var(--pp-border)',
-                background: 'var(--pp-surface)',
-                transition: 'border-color 0.15s',
-              }}
-            >
+            <Link key={step.key} href={step.href} className="pp-onboarding__step-row">
               {done ? (
                 <CheckCircle2 size={18} style={{ color: 'var(--pp-green)', flexShrink: 0 }} />
               ) : (
@@ -123,6 +125,8 @@ export default function OnboardingBanner() {
           )
         })}
       </div>
+
+      <div className="pp-onboarding__count">{completedSteps} of 3 steps done</div>
     </div>
   )
 }

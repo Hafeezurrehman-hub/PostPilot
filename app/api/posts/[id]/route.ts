@@ -68,7 +68,7 @@ export async function PATCH(
   }
 
   // Only allow safe fields to be updated
-  const allowedFields = ["content", "platforms", "media_url", "status", "scheduled_for"];
+  const allowedFields = ["content", "platforms", "media_url", "media_type", "status", "scheduled_for"];
   const updates: Record<string, unknown> = {};
   for (const key of allowedFields) {
     if (key in body) {

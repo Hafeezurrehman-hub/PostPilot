@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { Zap, Image, Link, Calendar, Clock, Send, Smile } from 'lucide-react'
+import { Zap, Image as ImageIcon, Link, Calendar, Clock, Send, Smile, X, AlertTriangle, CheckCircle2, Film } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
+import { PLATFORM_MEDIA_SPECS, aspectMatches } from '@/lib/platformMediaSpecs'
 
 const PLATFORMS = [
   { id: 'twitter',   label: 'Twitter / X', icon: '𝕏',  limit: 280 },
@@ -14,26 +15,39 @@ const PLATFORMS = [
   { id: 'tiktok',    label: 'TikTok',      icon: '♪',  limit: 2200 },
 ]
 
+type MediaState = {
+  file: File
+  previewUrl: string
+  type: 'image' | 'video'
+  width: number
+  height: number
+  sizeMB: number
+}
+
 export default function NewPostPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
   const editId = searchParams.get('edit')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [selected, setSelected] = useState<string[]>(['twitter', 'linkedin'])
   const [content, setContent] = useState('')
   const [aiPrompt, setAiPrompt] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploadingMedia, setUploadingMedia] = useState(false)
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now')
   const [scheduledFor, setScheduledFor] = useState('')
   const [loadingPost, setLoadingPost] = useState(!!editId)
+  const [media, setMedia] = useState<MediaState | null>(null)
+  const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null)
 
   const loadPost = useCallback(async (id: string) => {
     setLoadingPost(true)
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select('content, platforms, status, scheduled_for')
+        .select('content, platforms, status, scheduled_for, media_url')
         .eq('id', id)
         .single()
 
@@ -45,6 +59,7 @@ export default function NewPostPage() {
 
       setContent(data.content || '')
       setSelected(data.platforms || [])
+      setExistingMediaUrl(data.media_url || null)
       if (data.status === 'scheduled' && data.scheduled_for) {
         setScheduleMode('schedule')
         setScheduledFor(new Date(data.scheduled_for).toISOString().slice(0, 16))
@@ -62,6 +77,13 @@ export default function NewPostPage() {
     }
   }, [editId, loadPost])
 
+  // Clean up object URLs when media changes/unmounts
+  useEffect(() => {
+    return () => {
+      if (media?.previewUrl) URL.revokeObjectURL(media.previewUrl)
+    }
+  }, [media])
+
   const toggle = (id: string) => {
     setSelected(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
@@ -76,6 +98,77 @@ export default function NewPostPage() {
     charCount > minLimit ? 'pp-char-danger'
     : charCount > minLimit * 0.85 ? 'pp-char-warn'
     : ''
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+
+    if (!isImage && !isVideo) {
+      toast.error('Please select an image or video file.')
+      return
+    }
+
+    const sizeMB = file.size / (1024 * 1024)
+    const previewUrl = URL.createObjectURL(file)
+
+    if (isImage) {
+      const img = new window.Image()
+      img.onload = () => {
+        setMedia({ file, previewUrl, type: 'image', width: img.naturalWidth, height: img.naturalHeight, sizeMB })
+      }
+      img.onerror = () => toast.error('Could not read image dimensions.')
+      img.src = previewUrl
+    } else {
+      const video = document.createElement('video')
+      video.preload = 'metadata'
+      video.onloadedmetadata = () => {
+        setMedia({ file, previewUrl, type: 'video', width: video.videoWidth, height: video.videoHeight, sizeMB })
+      }
+      video.onerror = () => toast.error('Could not read video metadata.')
+      video.src = previewUrl
+    }
+
+    setExistingMediaUrl(null)
+    e.target.value = ''
+  }
+
+  const removeMedia = () => {
+    if (media?.previewUrl) URL.revokeObjectURL(media.previewUrl)
+    setMedia(null)
+    setExistingMediaUrl(null)
+  }
+
+  const uploadMedia = async (): Promise<{ url: string; type: 'image' | 'video' } | null> => {
+    if (!media) return null
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      toast.error('You must be logged in to upload media.')
+      return null
+    }
+
+    setUploadingMedia(true)
+    try {
+      const ext = media.file.name.split('.').pop() || (media.type === 'image' ? 'jpg' : 'mp4')
+      const path = `${user.id}/${Date.now()}.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('post-media')
+        .upload(path, media.file, { cacheControl: '3600', upsert: false })
+
+      if (uploadError) {
+        toast.error(`Upload failed: ${uploadError.message}`)
+        return null
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('post-media').getPublicUrl(path)
+      return { url: publicUrlData.publicUrl, type: media.type }
+    } finally {
+      setUploadingMedia(false)
+    }
+  }
 
   const handleAI = async () => {
     if (!aiPrompt.trim()) {
@@ -135,8 +228,21 @@ export default function NewPostPage() {
     )
 
     try {
+      // Upload new media first (if any) so we have a URL to save with the post
+      let mediaUrl = existingMediaUrl
+      let mediaType: string | null = media?.type ?? null
+      if (media) {
+        const uploaded = await uploadMedia()
+        if (!uploaded) {
+          toast.error('Media upload failed — post not saved.', { id: tid })
+          setLoading(false)
+          return
+        }
+        mediaUrl = uploaded.url
+        mediaType = uploaded.type
+      }
+
       if (editId) {
-        // Update existing post — backend expects PATCH with these exact fields
         const res = await fetch(`/api/posts/${editId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -145,6 +251,8 @@ export default function NewPostPage() {
             platforms: selected,
             status: scheduleMode === 'now' ? 'published' : 'scheduled',
             scheduled_for: scheduleMode === 'schedule' ? new Date(scheduledFor).toISOString() : null,
+            media_url: mediaUrl,
+            media_type: mediaType,
           }),
         })
 
@@ -158,7 +266,6 @@ export default function NewPostPage() {
           toast.error(data.error || 'Failed to update post.', { id: tid })
         }
       } else {
-        // Create new post — need current user first (RLS requires user_id on insert)
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
           toast.error('You must be logged in to post.', { id: tid })
@@ -174,6 +281,8 @@ export default function NewPostPage() {
             platforms: selected,
             status: scheduleMode === 'schedule' ? 'scheduled' : 'draft',
             scheduled_for: scheduleMode === 'schedule' ? new Date(scheduledFor).toISOString() : null,
+            media_url: mediaUrl,
+            media_type: mediaType,
           })
           .select('id')
           .single()
@@ -185,7 +294,6 @@ export default function NewPostPage() {
         }
 
         if (scheduleMode === 'now') {
-          // Trigger immediate publish
           const res = await fetch('/api/publish', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -196,14 +304,15 @@ export default function NewPostPage() {
           if (res.ok && data.success) {
             setContent('')
             setAiPrompt('')
+            removeMedia()
             toast.success(data.message || '🚀 Published successfully!', { id: tid })
           } else {
             toast.error(data.message || data.error || 'Failed to publish. Connect a platform first.', { id: tid })
           }
         } else {
-          // Scheduled — cron job will publish it later
           setContent('')
           setAiPrompt('')
+          removeMedia()
           toast.success('🕐 Post scheduled!', { id: tid })
         }
       }
@@ -222,8 +331,19 @@ export default function NewPostPage() {
     )
   }
 
+  const activeMediaUrl = media?.previewUrl || existingMediaUrl
+  const activeMediaType = media?.type || (existingMediaUrl ? 'image' : null) // best-effort for existing posts
+
   return (
     <div className="pp-composer">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,video/*"
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+
       <div className="pp-composer__header">
         <div>
           <h1 className="pp-composer__title">{editId ? 'Edit Post' : 'New Post'}</h1>
@@ -240,10 +360,10 @@ export default function NewPostPage() {
           <button
             className="pp-btn pp-btn--primary pp-btn--sm"
             onClick={handlePublish}
-            disabled={loading}
+            disabled={loading || uploadingMedia}
           >
             <Send size={14} />
-            {editId ? 'Update' : scheduleMode === 'now' ? 'Publish Now' : 'Schedule'}
+            {uploadingMedia ? 'Uploading media...' : editId ? 'Update' : scheduleMode === 'now' ? 'Publish Now' : 'Schedule'}
           </button>
         </div>
       </div>
@@ -288,9 +408,32 @@ export default function NewPostPage() {
               value={content}
               onChange={e => setContent(e.target.value)}
             />
+
+            {/* Media preview */}
+            {activeMediaUrl && (
+              <div className="pp-media-preview">
+                {activeMediaType === 'video' ? (
+                  <video src={activeMediaUrl} controls className="pp-media-preview__media" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={activeMediaUrl} alt="Upload preview" className="pp-media-preview__media" />
+                )}
+                <button className="pp-media-preview__remove" onClick={removeMedia} title="Remove media">
+                  <X size={14} />
+                </button>
+                {media && (
+                  <div className="pp-media-preview__meta">
+                    {media.width}×{media.height} · {media.sizeMB.toFixed(1)} MB
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="pp-compose-box__footer">
               <div className="pp-compose-box__actions">
-                <button className="pp-icon-btn" title="Add image"><Image size={15} /></button>
+                <button className="pp-icon-btn" title="Add image or video" onClick={() => fileInputRef.current?.click()}>
+                  <ImageIcon size={15} />
+                </button>
                 <button className="pp-icon-btn" title="Add link"><Link size={15} /></button>
                 <button className="pp-icon-btn" title="Add emoji"><Smile size={15} /></button>
               </div>
@@ -358,6 +501,72 @@ export default function NewPostPage() {
               </div>
             )}
           </div>
+
+          {/* Media specs — recommended sizes + mismatch warnings */}
+          {selected.length > 0 && (
+            <div className="pp-side-card">
+              <div className="pp-side-card__title">
+                <Film size={11} style={{ display: 'inline', marginRight: 4 }} />
+                Media size guide
+              </div>
+              <div className="pp-media-specs">
+                {selected.map(id => {
+                  const spec = PLATFORM_MEDIA_SPECS[id]
+                  if (!spec) return null
+
+                  const recommended = media?.type === 'video' ? spec.videoRecommended : spec.imageRecommended
+                  const maxMB = media?.type === 'video' ? spec.videoMaxMB : spec.imageMaxMB
+                  const recAspect = media?.type === 'video' ? spec.videoAspect : spec.imageAspect
+
+                  let status: 'none' | 'ok' | 'warn' = 'none'
+                  let warningText = ''
+
+                  if (media) {
+                    const actualAspect = media.width / media.height
+                    const aspectOk = aspectMatches(actualAspect, recAspect)
+                    const sizeOk = maxMB === 0 || media.sizeMB <= maxMB
+
+                    if (id === 'tiktok' && media.type === 'image') {
+                      status = 'warn'
+                      warningText = "TikTok doesn't support image posts."
+                    } else if (!aspectOk && !sizeOk) {
+                      status = 'warn'
+                      warningText = `Aspect ratio and file size don't match ${spec.label}'s recommendation.`
+                    } else if (!aspectOk) {
+                      status = 'warn'
+                      warningText = `Aspect ratio may get cropped on ${spec.label}.`
+                    } else if (!sizeOk) {
+                      status = 'warn'
+                      warningText = `File is larger than ${spec.label}'s ${maxMB}MB limit.`
+                    } else {
+                      status = 'ok'
+                    }
+                  }
+
+                  return (
+                    <div key={id} className="pp-media-spec-row">
+                      <div className="pp-media-spec-row__top">
+                        <span className="pp-media-spec-row__label">{spec.label}</span>
+                        {status === 'ok' && <CheckCircle2 size={14} style={{ color: 'var(--pp-green)' }} />}
+                        {status === 'warn' && <AlertTriangle size={14} style={{ color: 'var(--pp-amber)' }} />}
+                      </div>
+                      <div className="pp-media-spec-row__specs">
+                        {recommended} · max {maxMB}MB
+                      </div>
+                      {status === 'warn' && (
+                        <div className="pp-media-spec-row__warning">{warningText}</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {!media && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--pp-muted)', marginTop: 8 }}>
+                  Upload media to check it against these sizes.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="pp-side-card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
             <div className="pp-side-card__title" style={{ color: 'var(--pp-amber)' }}>
