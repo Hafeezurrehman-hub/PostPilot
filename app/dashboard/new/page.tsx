@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Zap, Image, Link, Calendar, Clock, Send, Smile } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { createClient } from '@/lib/supabase/client'
 
 const PLATFORMS = [
   { id: 'twitter',   label: 'Twitter / X', icon: '𝕏',  limit: 280 },
@@ -13,11 +15,52 @@ const PLATFORMS = [
 ]
 
 export default function NewPostPage() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const supabase = createClient()
+  const editId = searchParams.get('edit')
+
   const [selected, setSelected] = useState<string[]>(['twitter', 'linkedin'])
   const [content, setContent] = useState('')
   const [aiPrompt, setAiPrompt] = useState('')
   const [loading, setLoading] = useState(false)
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now')
+  const [scheduledFor, setScheduledFor] = useState('')
+  const [loadingPost, setLoadingPost] = useState(!!editId)
+
+  const loadPost = useCallback(async (id: string) => {
+    setLoadingPost(true)
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select('content, platforms, status, scheduled_for')
+        .eq('id', id)
+        .single()
+
+      if (error || !data) {
+        toast.error('Could not load post to edit')
+        setLoadingPost(false)
+        return
+      }
+
+      setContent(data.content || '')
+      setSelected(data.platforms || [])
+      if (data.status === 'scheduled' && data.scheduled_for) {
+        setScheduleMode('schedule')
+        setScheduledFor(new Date(data.scheduled_for).toISOString().slice(0, 16))
+      } else {
+        setScheduleMode('now')
+      }
+    } finally {
+      setLoadingPost(false)
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    if (editId) {
+      loadPost(editId)
+    }
+  }, [editId, loadPost])
 
   const toggle = (id: string) => {
     setSelected(prev =>
@@ -79,51 +122,128 @@ export default function NewPostPage() {
       toast.error(`Post too long for ${PLATFORMS.find(p => p.limit === minLimit)?.label}!`)
       return
     }
+    if (scheduleMode === 'schedule' && !scheduledFor) {
+      toast.error('Pick a date and time to schedule!')
+      return
+    }
 
+    setLoading(true)
     const tid = toast.loading(
-      scheduleMode === 'now' ? 'Publishing your post...' : 'Scheduling your post...'
+      editId
+        ? 'Updating your post...'
+        : scheduleMode === 'now' ? 'Publishing your post...' : 'Scheduling your post...'
     )
+
     try {
-      const res = await fetch('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, platforms: selected }),
-      })
-      if (res.ok) {
-        setContent('')
-        setAiPrompt('')
-        toast.success(
-          scheduleMode === 'now' ? '🚀 Published successfully!' : '🕐 Post scheduled!',
-          { id: tid }
-        )
+      if (editId) {
+        // Update existing post — backend expects PATCH with these exact fields
+        const res = await fetch(`/api/posts/${editId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content,
+            platforms: selected,
+            status: scheduleMode === 'now' ? 'published' : 'scheduled',
+            scheduled_for: scheduleMode === 'schedule' ? new Date(scheduledFor).toISOString() : null,
+          }),
+        })
+
+        if (res.ok) {
+          toast.success('✅ Post updated!', { id: tid })
+          setContent('')
+          setAiPrompt('')
+          router.push('/dashboard')
+        } else {
+          const data = await res.json().catch(() => ({} as { error?: string }))
+          toast.error(data.error || 'Failed to update post.', { id: tid })
+        }
       } else {
-        toast.error('Failed to publish. Try again.', { id: tid })
+        // Create new post — need current user first (RLS requires user_id on insert)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          toast.error('You must be logged in to post.', { id: tid })
+          setLoading(false)
+          return
+        }
+
+        const { data: newPost, error: insertError } = await supabase
+          .from('posts')
+          .insert({
+            user_id: user.id,
+            content,
+            platforms: selected,
+            status: scheduleMode === 'schedule' ? 'scheduled' : 'draft',
+            scheduled_for: scheduleMode === 'schedule' ? new Date(scheduledFor).toISOString() : null,
+          })
+          .select('id')
+          .single()
+
+        if (insertError || !newPost) {
+          toast.error(insertError?.message || 'Failed to save post.', { id: tid })
+          setLoading(false)
+          return
+        }
+
+        if (scheduleMode === 'now') {
+          // Trigger immediate publish
+          const res = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId: newPost.id }),
+          })
+          const data = await res.json().catch(() => ({} as { success?: boolean; message?: string; error?: string }))
+
+          if (res.ok && data.success) {
+            setContent('')
+            setAiPrompt('')
+            toast.success(data.message || '🚀 Published successfully!', { id: tid })
+          } else {
+            toast.error(data.message || data.error || 'Failed to publish. Connect a platform first.', { id: tid })
+          }
+        } else {
+          // Scheduled — cron job will publish it later
+          setContent('')
+          setAiPrompt('')
+          toast.success('🕐 Post scheduled!', { id: tid })
+        }
       }
     } catch {
       toast.error('Network error. Check connection.', { id: tid })
+    } finally {
+      setLoading(false)
     }
+  }
+
+  if (loadingPost) {
+    return (
+      <div className="pp-composer">
+        <p style={{ color: 'var(--pp-muted2)', padding: '2rem' }}>Loading post...</p>
+      </div>
+    )
   }
 
   return (
     <div className="pp-composer">
       <div className="pp-composer__header">
         <div>
-          <h1 className="pp-composer__title">New Post</h1>
+          <h1 className="pp-composer__title">{editId ? 'Edit Post' : 'New Post'}</h1>
           <p style={{ color: 'var(--pp-muted2)', fontSize: '0.83rem', marginTop: 3 }}>
-            Write once — publish everywhere
+            {editId ? 'Update your post below' : 'Write once — publish everywhere'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={handleSaveDraft}>
-            Save Draft
-          </button>
+          {!editId && (
+            <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={handleSaveDraft}>
+              Save Draft
+            </button>
+          )}
           <button
             className="pp-btn pp-btn--primary pp-btn--sm"
             onClick={handlePublish}
             disabled={loading}
           >
             <Send size={14} />
-            {scheduleMode === 'now' ? 'Publish Now' : 'Schedule'}
+            {editId ? 'Update' : scheduleMode === 'now' ? 'Publish Now' : 'Schedule'}
           </button>
         </div>
       </div>
@@ -208,7 +328,13 @@ export default function NewPostPage() {
                 <Calendar size={14} /> Schedule
               </button>
               {scheduleMode === 'schedule' && (
-                <input type="datetime-local" className="pp-input" style={{ marginTop: 4 }} />
+                <input
+                  type="datetime-local"
+                  className="pp-input"
+                  style={{ marginTop: 4 }}
+                  value={scheduledFor}
+                  onChange={e => setScheduledFor(e.target.value)}
+                />
               )}
             </div>
           </div>
