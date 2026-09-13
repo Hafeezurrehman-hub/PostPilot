@@ -1314,3 +1314,33 @@ html, body {
     max-width: 85vw;
   }
 }
+/* ═══════════════════════════════════════
+   NAMAZ-AWARE SCHEDULING WARNING
+═══════════════════════════════════════ */
+.pp-namaz-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 9px 11px;
+  border-radius: var(--pp-radius-sm);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  color: var(--pp-amber);
+}
+.pp-namaz-warning__text {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--pp-text);
+  margin-bottom: 4px;
+}
+.pp-namaz-warning__btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pp-amber);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}

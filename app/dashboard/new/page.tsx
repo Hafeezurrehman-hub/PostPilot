@@ -7,6 +7,8 @@ import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
 import { PLATFORM_MEDIA_SPECS, aspectMatches } from '@/lib/platformMediaSpecs'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
+import { getUserLocation, fetchPrayerTimes, checkNamazConflict, suggestClearTime, type PrayerTimes } from '@/lib/prayerTimes'
+import { Moon as MoonIcon } from 'lucide-react'
 
 const PLATFORMS = [
   { id: 'twitter',   label: 'Twitter / X', icon: '𝕏',  limit: 280 },
@@ -40,6 +42,9 @@ export default function NewPostPage() {
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now')
   const [scheduledFor, setScheduledFor] = useState('')
+  const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null)
+  const [prayerTimesDate, setPrayerTimesDate] = useState<string | null>(null) // which date they're for, to know when to refetch
+  const [namazCheckLoading, setNamazCheckLoading] = useState(false)
   const [loadingPost, setLoadingPost] = useState(!!editId)
   const [media, setMedia] = useState<MediaState | null>(null)
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null)
@@ -87,6 +92,49 @@ export default function NewPostPage() {
       if (media?.previewUrl) URL.revokeObjectURL(media.previewUrl)
     }
   }, [media])
+
+  // Namaz-aware scheduling: when the user switches to "Schedule", try to
+  // get their location (best-effort — silently skip if denied/unavailable)
+  // and fetch prayer times for the date they end up picking.
+  useEffect(() => {
+    if (scheduleMode !== 'schedule' || !scheduledFor) return
+    const datePart = scheduledFor.slice(0, 10) // YYYY-MM-DD
+    if (prayerTimesDate === datePart) return // already have it for this date
+
+    let cancelled = false
+    const run = async () => {
+      setNamazCheckLoading(true)
+      const loc = await getUserLocation()
+      if (!loc || cancelled) {
+        setNamazCheckLoading(false)
+        return
+      }
+      const times = await fetchPrayerTimes(loc.lat, loc.lng, new Date(scheduledFor))
+      if (!cancelled) {
+        setPrayerTimes(times)
+        setPrayerTimesDate(datePart)
+        setNamazCheckLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [scheduleMode, scheduledFor, prayerTimesDate])
+
+  const namazConflict = scheduleMode === 'schedule' && scheduledFor && prayerTimes
+    ? checkNamazConflict(new Date(scheduledFor), prayerTimes)
+    : null
+
+  const handleUseSuggestedTime = () => {
+    if (!prayerTimes || !scheduledFor) return
+    const suggestion = suggestClearTime(new Date(scheduledFor), prayerTimes)
+    if (suggestion) {
+      // datetime-local input wants "YYYY-MM-DDTHH:mm"
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const formatted = `${suggestion.getFullYear()}-${pad(suggestion.getMonth() + 1)}-${pad(suggestion.getDate())}T${pad(suggestion.getHours())}:${pad(suggestion.getMinutes())}`
+      setScheduledFor(formatted)
+      toast.success('Shifted to a clear time slot')
+    }
+  }
 
   const toggle = (id: string) => {
     setSelected(prev =>
@@ -310,6 +358,17 @@ export default function NewPostPage() {
             toast.error(publishData.message || publishData.error || 'Failed to publish. Connect a platform first.', { id: tid })
           }
         } else {
+          // Register the exact-time QStash job — without this, the post
+          // would just sit there until the once-a-day fallback cron sweep.
+          try {
+            await fetch('/api/posts/schedule', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ postId: editId, scheduledFor: new Date(scheduledFor).toISOString() }),
+            })
+          } catch (err) {
+            console.warn('Could not register exact-time schedule job:', err)
+          }
           toast.success('🕐 Post scheduled!', { id: tid })
         }
 
@@ -362,6 +421,17 @@ export default function NewPostPage() {
             toast.error(data.message || data.error || 'Failed to publish. Connect a platform first.', { id: tid })
           }
         } else {
+          // Register the exact-time QStash job — without this, the post
+          // would just sit there until the once-a-day fallback cron sweep.
+          try {
+            await fetch('/api/posts/schedule', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ postId: newPost.id, scheduledFor: new Date(scheduledFor).toISOString() }),
+            })
+          } catch (err) {
+            console.warn('Could not register exact-time schedule job:', err)
+          }
           setContent('')
           setAiPrompt('')
           removeMedia()
@@ -530,6 +600,24 @@ export default function NewPostPage() {
                   value={scheduledFor}
                   onChange={e => setScheduledFor(e.target.value)}
                 />
+              )}
+              {namazCheckLoading && (
+                <p style={{ fontSize: '0.72rem', color: 'var(--pp-muted)', marginTop: 2 }}>
+                  Checking namaz timings…
+                </p>
+              )}
+              {namazConflict && (
+                <div className="pp-namaz-warning">
+                  <MoonIcon size={13} />
+                  <div>
+                    <p className="pp-namaz-warning__text">
+                      Yeh waqt {namazConflict.prayer} ke qareeb hai ({namazConflict.minutesAway} min).
+                    </p>
+                    <button type="button" className="pp-namaz-warning__btn" onClick={handleUseSuggestedTime}>
+                      Behtar waqt suggest karein
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
