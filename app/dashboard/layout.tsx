@@ -7,25 +7,27 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard, PenSquare, Users,
   BarChart2, Settings, LogOut, Zap,
-  Menu, X, Bell, Sun, Moon,
+  Menu, X, Bell, Sun, Moon, Globe,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
-
-const navItems = [
-  { href: '/dashboard',           label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/new',       label: 'New Post',  icon: PenSquare },
-  { href: '/dashboard/connect',   label: 'Accounts',  icon: Users },
-  { href: '/dashboard/analytics', label: 'Analytics', icon: BarChart2 },
-  { href: '/dashboard/settings',  label: 'Settings',  icon: Settings },
-]
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname  = usePathname()
   const router    = useRouter()
   const supabase  = createClient()
+  const { language, setLanguage, t } = useLanguage()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+
+  const navItems = [
+    { href: '/dashboard',           label: t('nav.dashboard'), icon: LayoutDashboard },
+    { href: '/dashboard/new',       label: t('nav.newPost'),   icon: PenSquare },
+    { href: '/dashboard/connect',   label: t('nav.accounts'),  icon: Users },
+    { href: '/dashboard/analytics', label: t('nav.analytics'), icon: BarChart2 },
+    { href: '/dashboard/settings',  label: t('nav.settings'),  icon: Settings },
+  ]
 
   useEffect(() => {
     const saved = localStorage.getItem('pp-theme') as 'dark' | 'light' | null
@@ -40,6 +42,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setTheme(next)
     document.documentElement.setAttribute('data-theme', next)
     localStorage.setItem('pp-theme', next)
+  }
+
+  const toggleLanguage = () => {
+    setLanguage(language === 'en' ? 'ur' : 'en')
   }
 
   const handleLogout = async () => {
@@ -99,7 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="pp-nav">
-          <div className="pp-nav__label">Menu</div>
+          <div className="pp-nav__label">{t('nav.menu')}</div>
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href
             return (
@@ -120,11 +126,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="pp-sidebar__bottom">
           <div className="pp-plan-badge">
             <span className="pp-plan-badge__dot" />
-            Free Plan
+            {t('nav.freePlan')}
           </div>
           <button onClick={handleLogout} className="pp-logout">
             <LogOut size={16} strokeWidth={1.8} />
-            <span>Logout</span>
+            <span>{t('nav.logout')}</span>
           </button>
         </div>
       </aside>
@@ -141,8 +147,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="pp-topbar__right">
             <Link href="/dashboard/pricing" className="pp-btn pp-btn--purple pp-btn--sm pp-upgrade-btn">
               <Zap size={14} />
-              Upgrade
+              {t('nav.upgrade')}
             </Link>
+            <button className="pp-theme-toggle" onClick={toggleLanguage} title="Switch language / Zaban badlein">
+              <Globe size={17} strokeWidth={1.8} />
+              <span className="pp-lang-badge">{language === 'en' ? 'EN' : 'UR'}</span>
+            </button>
             <button className="pp-theme-toggle" onClick={toggleTheme} title="Toggle theme">
               {theme === 'dark' ? <Sun size={17} strokeWidth={1.8} /> : <Moon size={17} strokeWidth={1.8} />}
             </button>

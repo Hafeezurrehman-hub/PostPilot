@@ -9,6 +9,7 @@ import {
 import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
 import OnboardingBanner from '@/components/OnboardingBanner'
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 type Post = {
   id: string
@@ -37,6 +38,7 @@ function statusBadgeClass(status: Post['status']) {
 
 export default function DashboardPage() {
   const supabase = createClient()
+  const { t } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [posts, setPosts] = useState<Post[]>([])
   const [connectedCount, setConnectedCount] = useState(0)
@@ -72,7 +74,6 @@ export default function DashboardPage() {
       setPosts(fetchedPosts)
       setConnectedCount(connectionsCount || 0)
 
-      // Sum reach across this user's posts (best-effort; ok if analytics table is empty)
       const postIds = fetchedPosts.map(p => p.id)
       if (postIds.length > 0) {
         const { data: analyticsData } = await supabase
@@ -102,10 +103,10 @@ export default function DashboardPage() {
   const scheduledCount = posts.filter(p => p.status === 'scheduled').length
 
   const stats = [
-    { label: 'Posts Published', value: String(publishedCount), icon: CheckCircle2, color: 'var(--pp-green)' },
-    { label: 'Scheduled', value: String(scheduledCount), icon: Clock, color: 'var(--pp-indigo)' },
-    { label: 'Connected Accounts', value: String(connectedCount), icon: Users, color: 'var(--pp-purple)' },
-    { label: 'Total Reach', value: totalReach !== null ? totalReach.toLocaleString() : '—', icon: BarChart2, color: 'var(--pp-amber)' },
+    { label: t('dashboard.postsPublished'), value: String(publishedCount), icon: CheckCircle2, color: 'var(--pp-green)' },
+    { label: t('dashboard.scheduled'), value: String(scheduledCount), icon: Clock, color: 'var(--pp-indigo)' },
+    { label: t('dashboard.connectedAccounts'), value: String(connectedCount), icon: Users, color: 'var(--pp-purple)' },
+    { label: t('dashboard.totalReach'), value: totalReach !== null ? totalReach.toLocaleString() : '—', icon: BarChart2, color: 'var(--pp-amber)' },
   ]
 
   const handleDelete = async (id: string) => {
@@ -132,14 +133,14 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div className="pp-welcome">
         <div>
-          <h1 className="pp-welcome__heading">Good evening 👋</h1>
+          <h1 className="pp-welcome__heading">{t('dashboard.greeting')} 👋</h1>
           <p className="pp-welcome__sub">
-            You have {scheduledCount} post{scheduledCount === 1 ? '' : 's'} scheduled. Ready to create?
+            {t('dashboard.subGreeting', { count: scheduledCount, plural: scheduledCount === 1 ? '' : 's' })}
           </p>
         </div>
         <Link href="/dashboard/new" className="pp-btn pp-btn--primary">
           <PenSquare size={16} />
-          New Post
+          {t('dashboard.newPost')}
         </Link>
       </div>
 
@@ -162,9 +163,9 @@ export default function DashboardPage() {
         {/* Posts List */}
         <div className="pp-card">
           <div className="pp-card__header">
-            <h2 className="pp-card__title">Your Posts</h2>
+            <h2 className="pp-card__title">{t('dashboard.yourPosts')}</h2>
             <Link href="/dashboard/new" className="pp-link">
-              New Post <ArrowRight size={14} />
+              {t('dashboard.newPost')} <ArrowRight size={14} />
             </Link>
           </div>
 
@@ -173,9 +174,9 @@ export default function DashboardPage() {
           ) : posts.length === 0 ? (
             <div className="pp-empty">
               <AlertCircle size={32} strokeWidth={1.4} className="pp-empty__icon" />
-              <p className="pp-empty__text">No posts yet</p>
+              <p className="pp-empty__text">{t('dashboard.noPostsYet')}</p>
               <Link href="/dashboard/new" className="pp-link pp-link--centered">
-                Create your first post →
+                {t('dashboard.createFirstPost')}
               </Link>
             </div>
           ) : (
@@ -224,26 +225,26 @@ export default function DashboardPage() {
           <div className="pp-card pp-card--ai">
             <div className="pp-card__ai-badge">
               <Zap size={13} />
-              AI Powered
+              {t('dashboard.aiPowered')}
             </div>
-            <h2 className="pp-card__title">Generate Captions</h2>
-            <p className="pp-card__desc">Describe your post — AI writes captions optimized for every platform.</p>
+            <h2 className="pp-card__title">{t('dashboard.generateCaptions')}</h2>
+            <p className="pp-card__desc">{t('dashboard.generateCaptionsDesc')}</p>
             <Link href="/dashboard/new" className="pp-btn pp-btn--purple pp-btn--sm">
-              Try it now
+              {t('dashboard.tryItNow')}
             </Link>
           </div>
 
           {/* Connect platforms shortcut */}
           <div className="pp-card">
             <div className="pp-card__header">
-              <h2 className="pp-card__title">Accounts</h2>
+              <h2 className="pp-card__title">{t('dashboard.accountsCardTitle')}</h2>
               <Link href="/dashboard/connect" className="pp-link">
-                Manage <ArrowRight size={14} />
+                {t('dashboard.manage')} <ArrowRight size={14} />
               </Link>
             </div>
             <p className="pp-card__desc">
               {connectedCount === 0
-                ? 'No accounts connected yet.'
+                ? t('dashboard.noAccountsConnected')
                 : `${connectedCount} account${connectedCount === 1 ? '' : 's'} connected.`}
             </p>
           </div>

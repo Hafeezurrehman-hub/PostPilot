@@ -3,18 +3,10 @@
 import { useState } from 'react'
 import {
   BarChart2, TrendingUp, Users, FileText,
-  Calendar, ArrowUp, ArrowDown, Minus,
+  ArrowUp, ArrowDown, Minus,
     Clock
 } from 'lucide-react'
-
-const DATE_FILTERS = ['Last 7 days', 'Last 30 days', 'Last 90 days', 'All time']
-
-const STATS = [
-  { label: 'Total Posts', value: '0', change: 0, icon: FileText, color: 'var(--pp-indigo)' },
-  { label: 'Total Reach', value: '0', change: 0, icon: TrendingUp, color: 'var(--pp-purple)' },
-  { label: 'Platforms Used', value: '0', change: 0, icon: Users, color: 'var(--pp-green)' },
-  { label: 'Scheduled', value: '0', change: 0, icon: Clock, color: 'var(--pp-amber)' },
-]
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 const PLATFORM_STATS = [
   { name: 'Twitter / X', icon: '𝕏', color: '#1D9BF0', posts: 0, reach: 0, engagement: 0 },
@@ -34,8 +26,26 @@ const CHART_DATA = [0, 0, 0, 0, 0, 0, 0]
 const MAX_VAL = Math.max(...CHART_DATA, 1)
 
 export default function AnalyticsPage() {
-  const [dateFilter, setDateFilter] = useState('Last 7 days')
+  const { t } = useLanguage()
+
+  const DATE_FILTERS = [
+    { key: 'last7', label: t('analytics.filter.last7') },
+    { key: 'last30', label: t('analytics.filter.last30') },
+    { key: 'last90', label: t('analytics.filter.last90') },
+    { key: 'allTime', label: t('analytics.filter.allTime') },
+  ]
+
+  const STATS = [
+    { label: t('analytics.stat.totalPosts'), value: '0', change: 0, icon: FileText, color: 'var(--pp-indigo)' },
+    { label: t('analytics.stat.totalReach'), value: '0', change: 0, icon: TrendingUp, color: 'var(--pp-purple)' },
+    { label: t('analytics.stat.platformsUsed'), value: '0', change: 0, icon: Users, color: 'var(--pp-green)' },
+    { label: t('analytics.stat.scheduled'), value: '0', change: 0, icon: Clock, color: 'var(--pp-amber)' },
+  ]
+
+  const [dateFilter, setDateFilter] = useState('last7')
   const [chartTab, setChartTab] = useState<'posts' | 'reach'>('posts')
+
+  const activeFilterLabel = DATE_FILTERS.find(f => f.key === dateFilter)?.label
 
   return (
     <div className="pp-analytics">
@@ -43,18 +53,18 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="pp-analytics__header">
         <div>
-          <h1 className="pp-analytics__title">Analytics</h1>
-          <p className="pp-analytics__sub">Track your performance across all platforms.</p>
+          <h1 className="pp-analytics__title">{t('analytics.title')}</h1>
+          <p className="pp-analytics__sub">{t('analytics.subtitle')}</p>
         </div>
         {/* Date filter */}
         <div className="pp-date-filters">
           {DATE_FILTERS.map(f => (
             <button
-              key={f}
-              className={`pp-filter-tab ${dateFilter === f ? 'pp-filter-tab--active' : ''}`}
-              onClick={() => setDateFilter(f)}
+              key={f.key}
+              className={`pp-filter-tab ${dateFilter === f.key ? 'pp-filter-tab--active' : ''}`}
+              onClick={() => setDateFilter(f.key)}
             >
-              {f}
+              {f.label}
             </button>
           ))}
         </div>
@@ -68,7 +78,7 @@ export default function AnalyticsPage() {
               <div className="pp-stat-card__icon" style={{ color }}><Icon size={18} strokeWidth={1.8} /></div>
               <div className={`pp-stat-card__change ${change > 0 ? 'pp--up' : change < 0 ? 'pp--down' : 'pp--neutral'}`}>
                 {change > 0 ? <ArrowUp size={12} /> : change < 0 ? <ArrowDown size={12} /> : <Minus size={12} />}
-                {change === 0 ? 'No data' : `${Math.abs(change)}%`}
+                {change === 0 ? t('analytics.noData') : `${Math.abs(change)}%`}
               </div>
             </div>
             <div className="pp-stat-card__value">{value}</div>
@@ -83,16 +93,16 @@ export default function AnalyticsPage() {
         {/* Bar Chart */}
         <div className="pp-card pp-chart-card">
           <div className="pp-card__header">
-            <h2 className="pp-card__title">Posts Over Time</h2>
+            <h2 className="pp-card__title">{t('analytics.postsOverTime')}</h2>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 className={`pp-filter-tab pp-filter-tab--sm ${chartTab === 'posts' ? 'pp-filter-tab--active' : ''}`}
                 onClick={() => setChartTab('posts')}
-              >Posts</button>
+              >{t('analytics.chart.posts')}</button>
               <button
                 className={`pp-filter-tab pp-filter-tab--sm ${chartTab === 'reach' ? 'pp-filter-tab--active' : ''}`}
                 onClick={() => setChartTab('reach')}
-              >Reach</button>
+              >{t('analytics.chart.reach')}</button>
             </div>
           </div>
 
@@ -114,7 +124,7 @@ export default function AnalyticsPage() {
             {/* Empty state overlay */}
             <div className="pp-chart-empty">
               <BarChart2 size={36} strokeWidth={1.2} />
-              <p>No data yet — start posting to see analytics</p>
+              <p>{t('analytics.chart.emptyState')}</p>
             </div>
           </div>
         </div>
@@ -122,7 +132,7 @@ export default function AnalyticsPage() {
         {/* Platform breakdown */}
         <div className="pp-card">
           <div className="pp-card__header">
-            <h2 className="pp-card__title">By Platform</h2>
+            <h2 className="pp-card__title">{t('analytics.byPlatform')}</h2>
           </div>
           <div className="pp-platform-breakdown">
             {PLATFORM_STATS.map(({ name, icon, color, posts }) => (
@@ -147,26 +157,26 @@ export default function AnalyticsPage() {
       {/* Recent posts table */}
       <div className="pp-card">
         <div className="pp-card__header">
-          <h2 className="pp-card__title">Recent Posts</h2>
-          <span style={{ fontSize: '0.78rem', color: 'var(--pp-muted2)' }}>{dateFilter}</span>
+          <h2 className="pp-card__title">{t('analytics.recentPosts')}</h2>
+          <span style={{ fontSize: '0.78rem', color: 'var(--pp-muted2)' }}>{activeFilterLabel}</span>
         </div>
         {RECENT_POSTS.length === 0 ? (
           <div className="pp-empty" style={{ padding: '40px 20px' }}>
             <FileText size={36} strokeWidth={1.2} className="pp-empty__icon" />
-            <p className="pp-empty__text">No posts yet in this period</p>
+            <p className="pp-empty__text">{t('analytics.noPostsInPeriod')}</p>
             <a href="/dashboard/new" className="pp-btn pp-btn--primary pp-btn--sm" style={{ marginTop: 8 }}>
-              Create your first post
+              {t('analytics.createFirstPost')}
             </a>
           </div>
         ) : (
           <table className="pp-table">
             <thead>
               <tr>
-                <th>Content</th>
-                <th>Platform</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th>Reach</th>
+                <th>{t('analytics.table.content')}</th>
+                <th>{t('analytics.table.platform')}</th>
+                <th>{t('analytics.table.status')}</th>
+                <th>{t('analytics.table.date')}</th>
+                <th>{t('analytics.table.reach')}</th>
               </tr>
             </thead>
             <tbody>

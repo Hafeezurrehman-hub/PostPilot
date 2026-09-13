@@ -6,6 +6,7 @@ import { Zap, Image as ImageIcon, Link, Calendar, Clock, Send, Smile, X, AlertTr
 import toast from 'react-hot-toast'
 import { createClient } from '@/lib/supabase/client'
 import { PLATFORM_MEDIA_SPECS, aspectMatches } from '@/lib/platformMediaSpecs'
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 const PLATFORMS = [
   { id: 'twitter',   label: 'Twitter / X', icon: '𝕏',  limit: 280 },
@@ -28,6 +29,7 @@ export default function NewPostPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const supabase = createClient()
+  const { t } = useLanguage()
   const editId = searchParams.get('edit')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -41,6 +43,7 @@ export default function NewPostPage() {
   const [loadingPost, setLoadingPost] = useState(!!editId)
   const [media, setMedia] = useState<MediaState | null>(null)
   const [existingMediaUrl, setExistingMediaUrl] = useState<string | null>(null)
+  const [originalMediaUrl, setOriginalMediaUrl] = useState<string | null>(null) // what was in the DB when we loaded — used to clean up Storage on replace/remove
 
   const loadPost = useCallback(async (id: string) => {
     setLoadingPost(true)
@@ -60,6 +63,7 @@ export default function NewPostPage() {
       setContent(data.content || '')
       setSelected(data.platforms || [])
       setExistingMediaUrl(data.media_url || null)
+      setOriginalMediaUrl(data.media_url || null)
       if (data.status === 'scheduled' && data.scheduled_for) {
         setScheduleMode('schedule')
         setScheduledFor(new Date(data.scheduled_for).toISOString().slice(0, 16))
@@ -170,6 +174,25 @@ export default function NewPostPage() {
     }
   }
 
+  /**
+   * Removes an old media file from Storage after it's been replaced or
+   * removed, so the bucket doesn't accumulate orphaned uploads.
+   * Safe no-op if the URL isn't a post-media Storage URL.
+   */
+  const deleteStorageMedia = async (publicUrl: string) => {
+    const marker = '/post-media/'
+    const idx = publicUrl.indexOf(marker)
+    if (idx === -1) return
+    const path = publicUrl.slice(idx + marker.length)
+    if (!path) return
+    try {
+      await supabase.storage.from('post-media').remove([path])
+    } catch (err) {
+      // Best-effort cleanup — don't block the user's save over this
+      console.warn('Could not delete old media from storage:', err)
+    }
+  }
+
   const handleAI = async () => {
     if (!aiPrompt.trim()) {
       toast.error('Please describe your post first!')
@@ -249,22 +272,51 @@ export default function NewPostPage() {
           body: JSON.stringify({
             content,
             platforms: selected,
-            status: scheduleMode === 'now' ? 'published' : 'scheduled',
+            // Publish Now no longer sets status directly — /api/publish decides
+            // the real outcome after actually attempting delivery below.
+            status: scheduleMode === 'now' ? 'draft' : 'scheduled',
             scheduled_for: scheduleMode === 'schedule' ? new Date(scheduledFor).toISOString() : null,
             media_url: mediaUrl,
             media_type: mediaType,
           }),
         })
 
-        if (res.ok) {
-          toast.success('✅ Post updated!', { id: tid })
-          setContent('')
-          setAiPrompt('')
-          router.push('/dashboard')
-        } else {
+        if (!res.ok) {
           const data = await res.json().catch(() => ({} as { error?: string }))
           toast.error(data.error || 'Failed to update post.', { id: tid })
+          setLoading(false)
+          return
         }
+
+        // Media was replaced or removed — clean up the old Storage file now
+        // that the update has been saved successfully.
+        if (originalMediaUrl && originalMediaUrl !== mediaUrl) {
+          deleteStorageMedia(originalMediaUrl)
+        }
+
+        if (scheduleMode === 'now') {
+          // Route through the same real publish-check new posts use, instead
+          // of trusting the PATCH to mark it published.
+          const publishRes = await fetch('/api/publish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postId: editId }),
+          })
+          const publishData = await publishRes.json().catch(() => ({} as { success?: boolean; message?: string; error?: string }))
+
+          if (publishRes.ok && publishData.success) {
+            toast.success(publishData.message || '🚀 Published successfully!', { id: tid })
+          } else {
+            toast.error(publishData.message || publishData.error || 'Failed to publish. Connect a platform first.', { id: tid })
+          }
+        } else {
+          toast.success('🕐 Post scheduled!', { id: tid })
+        }
+
+        setContent('')
+        setAiPrompt('')
+        removeMedia()
+        router.push('/dashboard')
       } else {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) {
@@ -346,15 +398,15 @@ export default function NewPostPage() {
 
       <div className="pp-composer__header">
         <div>
-          <h1 className="pp-composer__title">{editId ? 'Edit Post' : 'New Post'}</h1>
+          <h1 className="pp-composer__title">{editId ? t('newPost.editTitle') : t('newPost.title')}</h1>
           <p style={{ color: 'var(--pp-muted2)', fontSize: '0.83rem', marginTop: 3 }}>
-            {editId ? 'Update your post below' : 'Write once — publish everywhere'}
+            {editId ? t('newPost.editSubtitle') : t('newPost.subtitle')}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {!editId && (
             <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={handleSaveDraft}>
-              Save Draft
+              {t('newPost.saveDraft')}
             </button>
           )}
           <button
@@ -363,7 +415,7 @@ export default function NewPostPage() {
             disabled={loading || uploadingMedia}
           >
             <Send size={14} />
-            {uploadingMedia ? 'Uploading media...' : editId ? 'Update' : scheduleMode === 'now' ? 'Publish Now' : 'Schedule'}
+            {uploadingMedia ? 'Uploading media...' : editId ? t('newPost.update') : scheduleMode === 'now' ? t('newPost.publishNow') : t('newPost.schedule')}
           </button>
         </div>
       </div>
@@ -402,9 +454,9 @@ export default function NewPostPage() {
 
           {/* Compose box */}
           <div className="pp-compose-box">
-            <div className="pp-compose-box__label">Your post</div>
+            <div className="pp-compose-box__label">{t('newPost.yourPost')}</div>
             <textarea
-              placeholder="What's on your mind? Write your post here..."
+              placeholder={t('newPost.placeholder')}
               value={content}
               onChange={e => setContent(e.target.value)}
             />
@@ -454,21 +506,21 @@ export default function NewPostPage() {
         {/* Right sidebar */}
         <div className="pp-compose-side">
           <div className="pp-side-card">
-            <div className="pp-side-card__title">Publish</div>
+            <div className="pp-side-card__title">{t('newPost.publish')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
                 className="pp-schedule-row"
                 style={{ border: scheduleMode === 'now' ? '1px solid var(--pp-indigo)' : '', color: scheduleMode === 'now' ? 'var(--pp-indigo)' : '' }}
                 onClick={() => setScheduleMode('now')}
               >
-                <Send size={14} /> Publish now
+                <Send size={14} /> {t('newPost.publishNow')}
               </button>
               <button
                 className="pp-schedule-row"
                 style={{ border: scheduleMode === 'schedule' ? '1px solid var(--pp-indigo)' : '', color: scheduleMode === 'schedule' ? 'var(--pp-indigo)' : '' }}
                 onClick={() => setScheduleMode('schedule')}
               >
-                <Calendar size={14} /> Schedule
+                <Calendar size={14} /> {t('newPost.schedule')}
               </button>
               {scheduleMode === 'schedule' && (
                 <input
@@ -483,9 +535,9 @@ export default function NewPostPage() {
           </div>
 
           <div className="pp-side-card">
-            <div className="pp-side-card__title">Posting to</div>
+            <div className="pp-side-card__title">{t('newPost.postingTo')}</div>
             {selected.length === 0 ? (
-              <p style={{ color: 'var(--pp-muted)', fontSize: '0.82rem' }}>Select at least one platform.</p>
+              <p style={{ color: 'var(--pp-muted)', fontSize: '0.82rem' }}>{t('newPost.selectPlatform')}</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {selected.map(id => {
@@ -570,7 +622,7 @@ export default function NewPostPage() {
 
           <div className="pp-side-card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
             <div className="pp-side-card__title" style={{ color: 'var(--pp-amber)' }}>
-              <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />Best time tip
+              <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />{t('newPost.bestTimeTip')}
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--pp-muted2)', lineHeight: 1.5 }}>
               Best engagement on Twitter: <strong style={{ color: 'var(--pp-text)' }}>9–11 AM</strong> and <strong style={{ color: 'var(--pp-text)' }}>6–8 PM</strong>.

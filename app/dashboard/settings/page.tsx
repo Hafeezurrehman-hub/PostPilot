@@ -3,18 +3,20 @@
 import { useState } from 'react'
 import { User, Bell, Palette, Shield, Trash2, Save, Eye, EyeOff, Sun, Moon, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
-
-const TABS = [
-  { id: 'profile',       label: 'Profile',       icon: User },
-  { id: 'appearance',   label: 'Appearance',    icon: Palette },
-  { id: 'notifications',label: 'Notifications', icon: Bell },
-  { id: 'security',     label: 'Security',      icon: Shield },
-]
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 export default function SettingsPage() {
+  const { t } = useLanguage()
   const [activeTab, setActiveTab]   = useState('profile')
   const [showPass, setShowPass]     = useState(false)
   const [saving, setSaving]         = useState(false)
+
+  const TABS = [
+    { id: 'profile',       label: t('settings.tabs.profile'),       icon: User },
+    { id: 'appearance',   label: t('settings.tabs.appearance'),    icon: Palette },
+    { id: 'notifications',label: t('settings.tabs.notifications'), icon: Bell },
+    { id: 'security',     label: t('settings.tabs.security'),      icon: Shield },
+  ]
 
   // Profile state
   const [name, setName]             = useState('Hafeez ur Rehman')
@@ -87,13 +89,21 @@ export default function SettingsPage() {
     { id: 'rose',   color: '#F43F5E', label: 'Rose' },
   ]
 
+  const NOTIF_ITEMS = [
+    { key: 'publishSuccess', label: t('settings.notifications.publishSuccess'), desc: t('settings.notifications.publishSuccessDesc') },
+    { key: 'publishFail',    label: t('settings.notifications.publishFail'),    desc: t('settings.notifications.publishFailDesc') },
+    { key: 'scheduled',      label: t('settings.notifications.scheduled'),      desc: t('settings.notifications.scheduledDesc') },
+    { key: 'weeklyReport',   label: t('settings.notifications.weeklyReport'),   desc: t('settings.notifications.weeklyReportDesc') },
+    { key: 'productUpdates', label: t('settings.notifications.productUpdates'), desc: t('settings.notifications.productUpdatesDesc') },
+  ]
+
   return (
     <div className="pp-settings">
 
       {/* Header */}
       <div>
-        <h1 className="pp-settings__title">Settings</h1>
-        <p className="pp-settings__sub">Manage your account and preferences.</p>
+        <h1 className="pp-settings__title">{t('settings.title')}</h1>
+        <p className="pp-settings__sub">{t('settings.subtitle')}</p>
       </div>
 
       <div className="pp-settings__layout">
@@ -118,34 +128,34 @@ export default function SettingsPage() {
           {/* ── PROFILE ── */}
           {activeTab === 'profile' && (
             <div className="pp-settings__panel">
-              <h2 className="pp-settings__panel-title">Profile Information</h2>
+              <h2 className="pp-settings__panel-title">{t('settings.profile.title')}</h2>
 
               {/* Avatar */}
               <div className="pp-avatar-row">
                 <div className="pp-avatar-lg">HA</div>
                 <div>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>Profile Photo</p>
+                  <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{t('settings.profile.photo')}</p>
                   <p style={{ color: 'var(--pp-muted2)', fontSize: '0.8rem', marginTop: 2 }}>
-                    Avatar initials — photo upload coming soon
+                    {t('settings.profile.photoDesc')}
                   </p>
                 </div>
               </div>
 
               <div className="pp-form-grid">
                 <div className="pp-form-group">
-                  <label className="pp-label">Full Name</label>
+                  <label className="pp-label">{t('settings.profile.fullName')}</label>
                   <input className="pp-input" value={name} onChange={e => setName(e.target.value)} />
                 </div>
                 <div className="pp-form-group">
-                  <label className="pp-label">Email</label>
+                  <label className="pp-label">{t('settings.profile.email')}</label>
                   <input className="pp-input" value={email} onChange={e => setEmail(e.target.value)} type="email" />
                 </div>
                 <div className="pp-form-group pp-form-group--full">
-                  <label className="pp-label">Bio</label>
+                  <label className="pp-label">{t('settings.profile.bio')}</label>
                   <textarea className="pp-input pp-textarea" value={bio} onChange={e => setBio(e.target.value)} />
                 </div>
                 <div className="pp-form-group">
-                  <label className="pp-label">Timezone</label>
+                  <label className="pp-label">{t('settings.profile.timezone')}</label>
                   <select className="pp-input pp-select" value={timezone} onChange={e => setTimezone(e.target.value)}>
                     <option value="Asia/Karachi">Asia/Karachi (PKT +5:00)</option>
                     <option value="Asia/Dubai">Asia/Dubai (GST +4:00)</option>
@@ -158,7 +168,7 @@ export default function SettingsPage() {
 
               <button className="pp-btn pp-btn--primary" onClick={handleSaveProfile} disabled={saving}>
                 <Save size={15} />
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? t('settings.profile.saving') : t('settings.profile.saveChanges')}
               </button>
             </div>
           )}
@@ -166,11 +176,11 @@ export default function SettingsPage() {
           {/* ── APPEARANCE ── */}
           {activeTab === 'appearance' && (
             <div className="pp-settings__panel">
-              <h2 className="pp-settings__panel-title">Appearance</h2>
+              <h2 className="pp-settings__panel-title">{t('settings.appearance.title')}</h2>
 
               {/* Theme */}
               <div className="pp-settings__section">
-                <p className="pp-settings__section-label">Theme</p>
+                <p className="pp-settings__section-label">{t('settings.appearance.theme')}</p>
                 <div className="pp-theme-cards">
                   <button
                     className={`pp-theme-card ${theme === 'dark' ? 'pp-theme-card--active' : ''}`}
@@ -181,7 +191,7 @@ export default function SettingsPage() {
                       <div className="pp-theme-card__bar pp-theme-card__bar--short" />
                     </div>
                     <div className="pp-theme-card__label">
-                      <Moon size={14} /> Dark
+                      <Moon size={14} /> {t('settings.appearance.dark')}
                       {theme === 'dark' && <Check size={13} style={{ marginLeft: 'auto', color: 'var(--pp-indigo)' }} />}
                     </div>
                   </button>
@@ -194,7 +204,7 @@ export default function SettingsPage() {
                       <div className="pp-theme-card__bar pp-theme-card__bar--short" />
                     </div>
                     <div className="pp-theme-card__label">
-                      <Sun size={14} /> Light
+                      <Sun size={14} /> {t('settings.appearance.light')}
                       {theme === 'light' && <Check size={13} style={{ marginLeft: 'auto', color: 'var(--pp-indigo)' }} />}
                     </div>
                   </button>
@@ -203,7 +213,7 @@ export default function SettingsPage() {
 
               {/* Accent color */}
               <div className="pp-settings__section">
-                <p className="pp-settings__section-label">Accent Color</p>
+                <p className="pp-settings__section-label">{t('settings.appearance.accentColor')}</p>
                 <div className="pp-accent-colors">
                   {ACCENTS.map(({ id, color, label }) => (
                     <button
@@ -224,15 +234,9 @@ export default function SettingsPage() {
           {/* ── NOTIFICATIONS ── */}
           {activeTab === 'notifications' && (
             <div className="pp-settings__panel">
-              <h2 className="pp-settings__panel-title">Notification Preferences</h2>
+              <h2 className="pp-settings__panel-title">{t('settings.notifications.title')}</h2>
               <div className="pp-notif-list">
-                {[
-                  { key: 'publishSuccess', label: 'Post published successfully', desc: 'When a post goes live' },
-                  { key: 'publishFail',    label: 'Post failed to publish',     desc: 'When publishing fails' },
-                  { key: 'scheduled',      label: 'Scheduled post reminder',    desc: '1 hour before scheduled time' },
-                  { key: 'weeklyReport',   label: 'Weekly analytics report',    desc: 'Every Monday morning' },
-                  { key: 'productUpdates', label: 'Product updates',            desc: 'New features and improvements' },
-                ].map(({ key, label, desc }) => (
+                {NOTIF_ITEMS.map(({ key, label, desc }) => (
                   <div key={key} className="pp-notif-row">
                     <div>
                       <p className="pp-notif-row__label">{label}</p>
@@ -248,7 +252,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <button className="pp-btn pp-btn--primary" onClick={handleSaveNotifs}>
-                <Save size={15} /> Save Preferences
+                <Save size={15} /> {t('settings.notifications.savePreferences')}
               </button>
             </div>
           )}
@@ -256,13 +260,13 @@ export default function SettingsPage() {
           {/* ── SECURITY ── */}
           {activeTab === 'security' && (
             <div className="pp-settings__panel">
-              <h2 className="pp-settings__panel-title">Security</h2>
+              <h2 className="pp-settings__panel-title">{t('settings.security.title')}</h2>
 
               <div className="pp-settings__section">
-                <p className="pp-settings__section-label">Change Password</p>
+                <p className="pp-settings__section-label">{t('settings.security.changePassword')}</p>
                 <div className="pp-form-grid">
                   <div className="pp-form-group pp-form-group--full">
-                    <label className="pp-label">Current Password</label>
+                    <label className="pp-label">{t('settings.security.currentPassword')}</label>
                     <div className="pp-input-wrap">
                       <input className="pp-input" type={showPass ? 'text' : 'password'} value={currentPass} onChange={e => setCurrentPass(e.target.value)} placeholder="••••••••" />
                       <button className="pp-input-eye" onClick={() => setShowPass(!showPass)}>
@@ -271,27 +275,27 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="pp-form-group">
-                    <label className="pp-label">New Password</label>
-                    <input className="pp-input" type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="Min 8 characters" />
+                    <label className="pp-label">{t('settings.security.newPassword')}</label>
+                    <input className="pp-input" type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder={t('settings.security.newPasswordPlaceholder')} />
                   </div>
                   <div className="pp-form-group">
-                    <label className="pp-label">Confirm Password</label>
-                    <input className="pp-input" type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} placeholder="Repeat new password" />
+                    <label className="pp-label">{t('settings.security.confirmPassword')}</label>
+                    <input className="pp-input" type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} placeholder={t('settings.security.confirmPasswordPlaceholder')} />
                   </div>
                 </div>
                 <button className="pp-btn pp-btn--primary" onClick={handleChangePass}>
-                  <Shield size={15} /> Update Password
+                  <Shield size={15} /> {t('settings.security.updatePassword')}
                 </button>
               </div>
 
               {/* Danger zone */}
               <div className="pp-danger-zone">
-                <p className="pp-danger-zone__title">⚠️ Danger Zone</p>
+                <p className="pp-danger-zone__title">{t('settings.security.dangerZone')}</p>
                 <p className="pp-danger-zone__desc">
-                  Deleting your account is permanent. All your posts, connections, and data will be removed.
+                  {t('settings.security.dangerZoneDesc')}
                 </p>
                 <button className="pp-btn pp-btn--danger" onClick={handleDeleteAccount}>
-                  <Trash2 size={15} /> Delete Account
+                  <Trash2 size={15} /> {t('settings.security.deleteAccount')}
                 </button>
               </div>
             </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { CheckCircle2, Plus, Trash2, ExternalLink, AlertCircle, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { useLanguage } from '@/lib/i18n/LanguageContext'
 
 const PLATFORMS = [
   { id: 'twitter', name: 'Twitter / X', icon: '𝕏', color: '#1D9BF0', desc: 'Share short updates, threads, and engage with your audience.', authUrl: '/api/auth/twitter/start', category: 'Social' },
@@ -23,6 +24,7 @@ const PLATFORMS = [
 const CATEGORIES = ['All', 'Social', 'Professional', 'Video', 'Community', 'Messaging', 'Business']
 
 export default function ConnectPage() {
+  const { t } = useLanguage()
   const [connected, setConnected] = useState<string[]>([])
   const [activeCategory, setActiveCategory] = useState('All')
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
@@ -61,19 +63,19 @@ export default function ConnectPage() {
       {/* Header */}
       <div className="pp-connect__header">
         <div>
-          <h1 className="pp-connect__title">Connected Accounts</h1>
-          <p className="pp-connect__sub">Connect your social accounts to start posting everywhere at once.</p>
+          <h1 className="pp-connect__title">{t('connect.title')}</h1>
+          <p className="pp-connect__sub">{t('connect.subtitle')}</p>
         </div>
         <div className="pp-connect__badge">
           <Zap size={13} />
-          {connected.length} / {PLATFORMS.length} connected
+          {connected.length} / {PLATFORMS.length} {t('connect.connected')}
         </div>
       </div>
 
       {/* Connected */}
       {connectedPlatforms.length > 0 && (
         <div className="pp-section">
-          <div className="pp-section__label"><CheckCircle2 size={14} /> Connected</div>
+          <div className="pp-section__label"><CheckCircle2 size={14} /> {t('connect.connectedSection')}</div>
           <div className="pp-platform-grid">
             {connectedPlatforms.map(p => (
               <div key={p.id} className="pp-platform-card pp-platform-card--connected">
@@ -86,7 +88,7 @@ export default function ConnectPage() {
                 <div className="pp-platform-card__actions">
                   <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={() => handleDisconnect(p.id, p.name)} disabled={disconnecting === p.id}>
                     <Trash2 size={13} />
-                    {disconnecting === p.id ? 'Removing…' : 'Disconnect'}
+                    {disconnecting === p.id ? t('connect.disconnecting') : t('connect.disconnect')}
                   </button>
                 </div>
               </div>
@@ -99,7 +101,7 @@ export default function ConnectPage() {
       <div className="pp-filter-tabs">
         {CATEGORIES.map(cat => (
           <button key={cat} className={`pp-filter-tab ${activeCategory === cat ? 'pp-filter-tab--active' : ''}`} onClick={() => setActiveCategory(cat)}>
-            {cat}
+            {t(`connect.category.${cat}`)}
           </button>
         ))}
       </div>
@@ -109,7 +111,7 @@ export default function ConnectPage() {
         {connectedPlatforms.length === 0 && (
           <div className="pp-connect__tip">
             <AlertCircle size={15} />
-            Connect at least one platform to start publishing posts.
+            {t('connect.tip')}
           </div>
         )}
         <div className="pp-platform-grid">
@@ -117,13 +119,13 @@ export default function ConnectPage() {
             <div key={p.id} className="pp-platform-card">
               <div className="pp-platform-card__top">
                 <div className="pp-platform-card__icon" style={{ background: p.color + '18', color: p.color }}>{p.icon}</div>
-                <span className="pp-platform-card__category">{p.category}</span>
+                <span className="pp-platform-card__category">{t(`connect.category.${p.category}`)}</span>
               </div>
               <div className="pp-platform-card__name">{p.name}</div>
               <div className="pp-platform-card__desc">{p.desc}</div>
               <div className="pp-platform-card__actions">
                 <button className="pp-btn pp-btn--primary pp-btn--sm" onClick={() => handleConnect(p.authUrl, p.name)}>
-                  <Plus size={13} /> Connect
+                  <Plus size={13} /> {t('connect.connect')}
                 </button>
                 <a href="#" className="pp-icon-btn" title="Learn more"><ExternalLink size={14} /></a>
               </div>

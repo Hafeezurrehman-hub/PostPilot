@@ -1025,6 +1025,18 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 22px;
 }
+.pp-auth__lang-toggle {
+  margin-left: auto;
+  font-size: 0.7rem; font-weight: 700;
+  color: var(--pp-muted2);
+  background: var(--pp-surface2);
+  border: 1px solid var(--pp-border);
+  padding: 4px 9px;
+  border-radius: 20px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.pp-auth__lang-toggle:hover { color: var(--pp-text); border-color: var(--pp-indigo); }
+
 .pp-auth__logo-text {
   font-size: 1.1rem; font-weight: 700; color: var(--pp-text);
 }
@@ -1218,4 +1230,87 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
 .pp-media-spec-row__warning {
   font-size: 0.72rem; color: var(--pp-amber);
   margin-top: 5px; line-height: 1.4;
+}
+/* ═══════════════════════════════════════
+   LANGUAGE TOGGLE
+═══════════════════════════════════════ */
+.pp-lang-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  margin-left: 3px;
+  color: inherit;
+}/* ═══════════════════════════════════════
+   MOBILE FIXES — no horizontal scroll,
+   topbar + bottom nav stay pinned
+═══════════════════════════════════════ */
+
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.pp-root {
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+}
+
+.pp-main {
+  overflow-x: hidden;
+  min-width: 0; /* allow flex child to shrink below content size */
+}
+
+/* Reinforce sticky topbar */
+.pp-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  width: 100%;
+}
+
+/* Reinforce fixed bottom nav — higher z-index so it never gets covered,
+   and explicit width/left/right so it can't drift on mobile browsers */
+.pp-bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  width: 100%;
+}
+
+/* Any grid/flex content that could overflow gets a safety clamp */
+.pp-content {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+.pp-stats, .pp-analytics__stats, .pp-platform-grid,
+.pp-grid-2, .pp-analytics__grid, .pp-form-grid {
+  min-width: 0;
+}
+.pp-stat-card, .pp-platform-card, .pp-card {
+  min-width: 0;
+}
+
+/* Tables are the most common overflow culprit — scroll the table itself,
+   not the whole page */
+.pp-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Long unbroken text (URLs, emails) shouldn't force page width */
+.pp-card__desc, .pp-post-row__content, .pp-notif-row__desc {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 960px) {
+  /* Prevent the mobile slide-in sidebar from ever causing page-level
+     horizontal scroll while it's translated off-screen */
+  .pp-sidebar {
+    max-width: 85vw;
+  }
 }

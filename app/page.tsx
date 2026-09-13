@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Zap, Check } from "lucide-react";
+import { Zap, Check, Globe } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 // --- Dispatch board data ---
 const DISPATCH_ITEMS = [
@@ -16,76 +17,8 @@ const DISPATCH_ITEMS = [
   { code: "RD", name: "Reddit", status: "Posting…" },
 ];
 
-// --- Features (no cards — plain icon + text rows) ---
-const FEATURES = [
-  {
-    label: "Write once",
-    detail:
-      "Compose in PostPilot's editor. One draft goes everywhere — no copy-pasting, no reformatting per platform.",
-  },
-  {
-    label: "AI rewrites per platform",
-    detail:
-      "LinkedIn needs a different tone than TikTok. The AI rewrites your caption automatically for each platform's voice and character limit.",
-  },
-  {
-    label: "Schedule or post now",
-    detail:
-      "Pick a time and PostPilot publishes. Or hit 'Post now' and watch the dispatch board fill up in real time.",
-  },
-  {
-    label: "One analytics view",
-    detail:
-      "Reach, impressions, and engagement across every connected account in a single dashboard — no platform-hopping.",
-  },
-];
-
-// --- Pricing ---
-const PLANS = [
-  {
-    name: "Free",
-    price: "Rs 0",
-    period: "forever",
-    desc: "For individuals just getting started.",
-    features: ["3 connected accounts", "10 posts / month", "Basic analytics", "AI captions (limited)"],
-    cta: "Start free",
-    primary: false,
-  },
-  {
-    name: "Pro",
-    price: "Rs 1,500",
-    period: "per month",
-    desc: "For creators and small teams.",
-    features: [
-      "13 connected accounts",
-      "Unlimited posts",
-      "Full analytics suite",
-      "Unlimited AI captions",
-      "Scheduling & auto-publish",
-      "Priority support",
-    ],
-    cta: "Upgrade to Pro",
-    primary: true,
-  },
-  {
-    name: "Team",
-    price: "Rs 4,000",
-    period: "per month",
-    desc: "For growing marketing teams.",
-    features: [
-      "Everything in Pro",
-      "Up to 5 team members",
-      "Brand voice training",
-      "Social listening",
-      "Shared content calendar",
-    ],
-    cta: "Upgrade to Team",
-    primary: false,
-  },
-];
-
 // --- Dispatch Board Component ---
-function DispatchBoard() {
+function DispatchBoard({ t }: { t: (key: string) => string }) {
   const [activeIdx, setActiveIdx] = useState(2); // "Posting…" row highlighted
 
   useEffect(() => {
@@ -98,8 +31,8 @@ function DispatchBoard() {
   return (
     <div className="dispatch-board">
       <div className="dispatch-header">
-        <span className="dispatch-col-code">Platform</span>
-        <span className="dispatch-col-status">Status</span>
+        <span className="dispatch-col-code">{t('landing.dispatchPlatform')}</span>
+        <span className="dispatch-col-status">{t('landing.dispatchStatus')}</span>
       </div>
       {DISPATCH_ITEMS.map((item, i) => (
         <div
@@ -127,6 +60,58 @@ function DispatchBoard() {
 
 // --- Page ---
 export default function Home() {
+  const { language, setLanguage, t } = useLanguage();
+
+  const FEATURES = [
+    { label: t('landing.feature1Label'), detail: t('landing.feature1Detail') },
+    { label: t('landing.feature2Label'), detail: t('landing.feature2Detail') },
+    { label: t('landing.feature3Label'), detail: t('landing.feature3Detail') },
+    { label: t('landing.feature4Label'), detail: t('landing.feature4Detail') },
+  ];
+
+  const PLANS = [
+    {
+      name: t('landing.planFreeName'),
+      price: "Rs 0",
+      period: t('landing.forever'),
+      desc: t('landing.planFreeDesc'),
+      features: ["3 connected accounts", "10 posts / month", "Basic analytics", "AI captions (limited)"],
+      cta: t('landing.planFreeCta'),
+      primary: false,
+    },
+    {
+      name: t('landing.planProName'),
+      price: "Rs 1,500",
+      period: t('landing.perMonth'),
+      desc: t('landing.planProDesc'),
+      features: [
+        "13 connected accounts",
+        "Unlimited posts",
+        "Full analytics suite",
+        "Unlimited AI captions",
+        "Scheduling & auto-publish",
+        "Priority support",
+      ],
+      cta: t('landing.planProCta'),
+      primary: true,
+    },
+    {
+      name: t('landing.planTeamName'),
+      price: "Rs 4,000",
+      period: t('landing.perMonth'),
+      desc: t('landing.planTeamDesc'),
+      features: [
+        "Everything in Pro",
+        "Up to 5 team members",
+        "Brand voice training",
+        "Social listening",
+        "Shared content calendar",
+      ],
+      cta: t('landing.planTeamCta'),
+      primary: false,
+    },
+  ];
+
   return (
     <>
       <style>{`
@@ -175,6 +160,15 @@ export default function Home() {
         }
         .logo-accent { color: var(--indigo); }
         .nav-links { display: flex; align-items: center; gap: 8px; }
+        .nav-lang {
+          display: flex; align-items: center; gap: 4px;
+          font-size: 12px; font-weight: 600; color: var(--muted2);
+          padding: 6px 10px; border-radius: 20px;
+          border: 1px solid var(--border);
+          background: transparent; cursor: pointer;
+          transition: color .15s, border-color .15s;
+        }
+        .nav-lang:hover { color: var(--text); border-color: var(--indigo); }
         .nav-ghost {
           font-size: 13px; color: var(--muted2); padding: 6px 12px;
           border-radius: 6px; transition: color .15s;
@@ -524,8 +518,16 @@ export default function Home() {
               Post<span className="logo-accent">Pilot</span>
             </div>
             <div className="nav-links">
-              <Link href="/login" className="nav-ghost">Log in</Link>
-              <Link href="/login" className="nav-cta">Get started</Link>
+              <button
+                type="button"
+                className="nav-lang"
+                onClick={() => setLanguage(language === 'en' ? 'ur' : 'en')}
+              >
+                <Globe size={13} />
+                {language === 'en' ? 'اردو' : 'EN'}
+              </button>
+              <Link href="/login" className="nav-ghost">{t('landing.login')}</Link>
+              <Link href="/login" className="nav-cta">{t('landing.getStarted')}</Link>
             </div>
           </div>
         </nav>
@@ -535,24 +537,24 @@ export default function Home() {
           <div>
             <div className="hero-eyebrow">
               <span className="hero-dot" />
-              13 platforms, one post
+              {t('landing.eyebrow')}
             </div>
             <h1 className="hero-h1">
-              Your post,<br />
-              dispatched<br />
-              everywhere.
+              {t('landing.heroLine1')}<br />
+              {t('landing.heroLine2')}<br />
+              {t('landing.heroLine3')}
             </h1>
             <p className="hero-sub">
-              Write once in PostPilot. The AI rewrites it for each platform's voice, then publishes — or schedules — across all 13 at once.
+              {t('landing.heroSub')}
             </p>
             <div className="hero-actions">
-              <Link href="/login" className="btn-primary">Start for free</Link>
-              <Link href="/dashboard" className="btn-ghost">See the dashboard</Link>
+              <Link href="/login" className="btn-primary">{t('landing.startFree')}</Link>
+              <Link href="/dashboard" className="btn-ghost">{t('landing.seeDashboard')}</Link>
             </div>
           </div>
 
           <div>
-            <DispatchBoard />
+            <DispatchBoard t={t} />
           </div>
         </section>
 
@@ -560,7 +562,7 @@ export default function Home() {
 
         {/* Features */}
         <section className="features-section">
-          <p className="features-label">How it works</p>
+          <p className="features-label">{t('landing.howItWorks')}</p>
           <div className="features-grid">
             {FEATURES.map((f) => (
               <div className="feature-row" key={f.label}>
@@ -575,14 +577,14 @@ export default function Home() {
         <section className="pricing-section">
           <div className="pricing-inner">
             <div className="pricing-head">
-              <h2 className="pricing-title">Straightforward pricing</h2>
-              <p className="pricing-sub">Pay via JazzCash, Easypaisa, or bank transfer. Upgrade anytime.</p>
+              <h2 className="pricing-title">{t('landing.pricingTitle')}</h2>
+              <p className="pricing-sub">{t('landing.pricingSub')}</p>
             </div>
 
             <div className="pricing-grid">
               {PLANS.map((plan) => (
                 <div key={plan.name} className={`plan ${plan.primary ? "plan--primary" : ""}`}>
-                  {plan.primary && <span className="plan-badge">Most popular</span>}
+                  {plan.primary && <span className="plan-badge">{t('landing.mostPopular')}</span>}
                   <div className="plan-name">{plan.name}</div>
                   <div className="plan-price">{plan.price}</div>
                   <div className="plan-period">{plan.period}</div>
@@ -610,12 +612,12 @@ export default function Home() {
         {/* CTA */}
         <section className="cta-section">
           <div className="cta-inner">
-            <h2 className="cta-h2">Your next post goes to 13 platforms. Ready?</h2>
+            <h2 className="cta-h2">{t('landing.ctaHeading')}</h2>
             <p className="cta-sub">
-              Join creators and teams who stopped posting one platform at a time.
+              {t('landing.ctaSub')}
             </p>
             <Link href="/login" className="btn-primary">
-              Start for free
+              {t('landing.startFree')}
             </Link>
           </div>
         </section>
@@ -630,8 +632,8 @@ export default function Home() {
               PostPilot
             </div>
             <div className="footer-links">
-              <Link href="/privacy" className="footer-link">Privacy</Link>
-              <Link href="/terms" className="footer-link">Terms</Link>
+              <Link href="/privacy" className="footer-link">{t('landing.footerPrivacy')}</Link>
+              <Link href="/terms" className="footer-link">{t('landing.footerTerms')}</Link>
             </div>
           </div>
         </footer>

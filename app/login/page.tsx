@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { ArrowLeft, Zap, Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 function authRedirectTo(path: string) {
   const origin =
@@ -33,6 +34,7 @@ function friendlyAuthError(message: string): string {
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const { language, setLanguage, t } = useLanguage();
   const nextPath = searchParams.get("next") || "/dashboard";
   const urlError = searchParams.get("error");
 
@@ -121,7 +123,7 @@ function LoginForm() {
       <div className="pp-auth__card">
         <Link href="/" className="pp-auth__back">
           <ArrowLeft size={14} />
-          Back
+          {t('login.back')}
         </Link>
 
         <div className="pp-auth__logo">
@@ -131,20 +133,27 @@ function LoginForm() {
           <span className="pp-auth__logo-text">
             Post<span>Pilot</span>
           </span>
+          <button
+            type="button"
+            className="pp-auth__lang-toggle"
+            onClick={() => setLanguage(language === 'en' ? 'ur' : 'en')}
+          >
+            {language === 'en' ? 'اردو' : 'EN'}
+          </button>
         </div>
 
         <h1 className="pp-auth__title">
-          {mode === "login" ? "Welcome back" : "Create your account"}
+          {mode === "login" ? t('login.welcomeBack') : t('login.createAccount')}
         </h1>
         <p className="pp-auth__subtitle">
           {mode === "login"
-            ? "Log in to manage your posts."
-            : "Get started for free, no card required."}
+            ? t('login.subtitleLogin')
+            : t('login.subtitleSignup')}
         </p>
 
         <form className="pp-auth__form" onSubmit={handleSubmit}>
           <div className="pp-form-group">
-            <label className="pp-label" htmlFor="email">Email</label>
+            <label className="pp-label" htmlFor="email">{t('login.email')}</label>
             <input
               id="email"
               type="email"
@@ -159,7 +168,7 @@ function LoginForm() {
 
           <div className="pp-form-group">
             <div className="pp-auth__label-row">
-              <label className="pp-label" htmlFor="password">Password</label>
+              <label className="pp-label" htmlFor="password">{t('login.password')}</label>
               {mode === "login" && (
                 <button
                   type="button"
@@ -183,7 +192,7 @@ function LoginForm() {
                   }}
                   className="pp-link pp-auth__forgot"
                 >
-                  Forgot password?
+                  {t('login.forgotPassword')}
                 </button>
               )}
             </div>
@@ -219,12 +228,12 @@ function LoginForm() {
             disabled={loading}
             className="pp-btn pp-btn--primary pp-btn--full"
           >
-            {loading ? "One moment..." : mode === "login" ? "Log In" : "Create Account"}
+            {loading ? "One moment..." : mode === "login" ? t('login.logIn') : t('login.createAccountBtn')}
           </button>
         </form>
 
         <p className="pp-auth__switch">
-          {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+          {mode === "login" ? t('login.noAccount') : t('login.hasAccount')}{" "}
           <button
             type="button"
             onClick={() => {
@@ -234,7 +243,7 @@ function LoginForm() {
             }}
             className="pp-link"
           >
-            {mode === "login" ? "Sign up" : "Log in"}
+            {mode === "login" ? t('login.signUp') : t('login.logInLink')}
           </button>
         </p>
       </div>
