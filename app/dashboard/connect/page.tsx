@@ -108,12 +108,81 @@ function TelegramConnectModal({ onClose, onConnected }: { onClose: () => void; o
   )
 }
 
+function WhatsAppRecipientsModal({ onClose }: { onClose: () => void }) {
+  const [numbers, setNumbers] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async () => {
+    const recipients = numbers.split(/[\n,]+/).map(n => n.trim()).filter(Boolean)
+    if (recipients.length === 0) {
+      toast.error('Kam se kam ek number daalein')
+      return
+    }
+    setLoading(true)
+    const tid = toast.loading('Saving recipient list...')
+    try {
+      const res = await fetch('/api/auth/whatsapp/recipients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipients }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        toast.success(`${data.count} recipients saved`, { id: tid })
+        onClose()
+      } else {
+        toast.error(data.error || 'Could not save recipients', { id: tid })
+      }
+    } catch {
+      toast.error('Network error', { id: tid })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="pp-modal-overlay" onClick={onClose}>
+      <div className="pp-modal" onClick={e => e.stopPropagation()}>
+        <div className="pp-modal__header">
+          <h3 className="pp-modal__title">WhatsApp Broadcast List</h3>
+          <button className="pp-icon-btn" onClick={onClose}><X size={16} /></button>
+        </div>
+        <div className="pp-modal__body">
+          <p className="pp-modal__desc">
+            WhatsApp par koi official &quot;Status&quot; ya &quot;Channel&quot; posting API nahi hai abhi tak — yeh in numbers ko ek broadcast message bhejta hai jab bhi post publish ho.
+          </p>
+          <div className="pp-form-group">
+            <label className="pp-label">Recipient Numbers (ek line ya comma se alag)</label>
+            <textarea
+              className="pp-input pp-textarea"
+              placeholder={'923001234567\n923009876543'}
+              value={numbers}
+              onChange={e => setNumbers(e.target.value)}
+              style={{ minHeight: 100 }}
+            />
+          </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--pp-muted)' }}>
+            Country code ke sath, bina + ke (jaise 923001234567 for Pakistan).
+          </p>
+        </div>
+        <div className="pp-modal__footer">
+          <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={onClose}>Cancel</button>
+          <button className="pp-btn pp-btn--primary pp-btn--sm" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Saving...' : 'Save List'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ConnectPage() {
   const { t } = useLanguage()
   const [connected, setConnected] = useState<string[]>([])
   const [activeCategory, setActiveCategory] = useState('All')
   const [disconnecting, setDisconnecting] = useState<string | null>(null)
   const [showTelegramModal, setShowTelegramModal] = useState(false)
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
 
   const filtered = activeCategory === 'All' ? PLATFORMS : PLATFORMS.filter(p => p.category === activeCategory)
   const connectedPlatforms = PLATFORMS.filter(p => connected.includes(p.id))
@@ -176,6 +245,11 @@ export default function ConnectPage() {
                 <div className="pp-platform-card__name">{p.name}</div>
                 <div className="pp-platform-card__desc">{p.desc}</div>
                 <div className="pp-platform-card__actions">
+                  {p.id === 'whatsapp' && (
+                    <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={() => setShowWhatsAppModal(true)}>
+                      Manage recipients
+                    </button>
+                  )}
                   <button className="pp-btn pp-btn--ghost pp-btn--sm" onClick={() => handleDisconnect(p.id, p.name)} disabled={disconnecting === p.id}>
                     <Trash2 size={13} />
                     {disconnecting === p.id ? t('connect.disconnecting') : t('connect.disconnect')}
@@ -229,6 +303,9 @@ export default function ConnectPage() {
           onClose={() => setShowTelegramModal(false)}
           onConnected={() => setConnected(prev => [...prev, 'telegram'])}
         />
+      )}
+      {showWhatsAppModal && (
+        <WhatsAppRecipientsModal onClose={() => setShowWhatsAppModal(false)} />
       )}
     </div>
   )

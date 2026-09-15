@@ -9,6 +9,7 @@ import { PLATFORM_MEDIA_SPECS, aspectMatches } from '@/lib/platformMediaSpecs'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 import { getUserLocation, fetchPrayerTimes, checkNamazConflict, suggestClearTime, type PrayerTimes } from '@/lib/prayerTimes'
 import { PlatformIcon } from '@/components/PlatformIcon'
+import { getBestTimeRecommendation, type TimeRecommendation } from '@/lib/bestPostingTime'
 import { Moon as MoonIcon } from 'lucide-react'
 
 const PLATFORMS = [
@@ -43,6 +44,7 @@ export default function NewPostPage() {
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [scheduleMode, setScheduleMode] = useState<'now' | 'schedule'>('now')
   const [scheduledFor, setScheduledFor] = useState('')
+  const [bestTimes, setBestTimes] = useState<Record<string, TimeRecommendation>>({})
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null)
   const [prayerTimesDate, setPrayerTimesDate] = useState<string | null>(null) // which date they're for, to know when to refetch
   const [namazCheckLoading, setNamazCheckLoading] = useState(false)
@@ -136,6 +138,49 @@ export default function NewPostPage() {
       toast.success('Shifted to a clear time slot')
     }
   }
+
+  // Best posting time per selected platform — real data from the user's
+  // own published posts if there's enough history, industry fallback otherwise.
+  useEffect(() => {
+    let cancelled = false
+    const loadBestTimes = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || selected.length === 0) return
+
+      const entries = await Promise.all(selected.map(async (platform) => {
+        const { data: platformPosts } = await supabase
+          .from('posts')
+          .select('id, published_at')
+          .eq('user_id', user.id)
+          .eq('status', 'published')
+          .contains('platforms', [platform])
+
+        const postIds = (platformPosts || []).map(p => p.id)
+        if (postIds.length === 0) {
+          return [platform, getBestTimeRecommendation(platform, [])] as const
+        }
+
+        const { data: analyticsRows } = await supabase
+          .from('post_analytics')
+          .select('post_id, reach')
+          .eq('platform', platform)
+          .in('post_id', postIds)
+
+        const publishedAtByPost = new Map((platformPosts || []).map(p => [p.id, p.published_at]))
+        const history = (analyticsRows || [])
+          .filter(r => publishedAtByPost.get(r.post_id))
+          .map(r => ({ publishedAt: publishedAtByPost.get(r.post_id) as string, reach: r.reach || 0 }))
+
+        return [platform, getBestTimeRecommendation(platform, history)] as const
+      }))
+
+      if (!cancelled) {
+        setBestTimes(Object.fromEntries(entries))
+      }
+    }
+    loadBestTimes()
+    return () => { cancelled = true }
+  }, [selected, supabase])
 
   const toggle = (id: string) => {
     setSelected(prev =>
@@ -709,14 +754,40 @@ export default function NewPostPage() {
             </div>
           )}
 
-          <div className="pp-side-card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
-            <div className="pp-side-card__title" style={{ color: 'var(--pp-amber)' }}>
-              <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />{t('newPost.bestTimeTip')}
+          {selected.length > 0 && (
+            <div className="pp-side-card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.04)' }}>
+              <div className="pp-side-card__title" style={{ color: 'var(--pp-amber)' }}>
+                <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />{t('newPost.bestTimeTip')}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {selected.map(id => {
+                  const rec = bestTimes[id]
+                  const p = PLATFORMS.find(pl => pl.id === id)
+                  return (
+                    <div key={id} style={{ fontSize: '0.8rem', color: 'var(--pp-muted2)', lineHeight: 1.5 }}>
+                      <strong style={{ color: 'var(--pp-text)' }}>{p?.label}:</strong>{' '}
+                      {rec ? (
+                        <>
+                          <strong style={{ color: 'var(--pp-text)' }}>{rec.label}</strong>
+                          {rec.source === 'your-data' ? (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--pp-green)', marginLeft: 5 }}>
+                              (from your last {rec.sampleSize} posts)
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--pp-muted)', marginLeft: 5 }}>
+                              (industry benchmark — publish a few more posts for your own data)
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span style={{ color: 'var(--pp-muted)' }}>Loading…</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <p style={{ fontSize: '0.8rem', color: 'var(--pp-muted2)', lineHeight: 1.5 }}>
-              Best engagement on Twitter: <strong style={{ color: 'var(--pp-text)' }}>9–11 AM</strong> and <strong style={{ color: 'var(--pp-text)' }}>6–8 PM</strong>.
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </div>

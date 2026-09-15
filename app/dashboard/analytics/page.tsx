@@ -8,15 +8,17 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
+import { PlatformIcon } from '@/components/PlatformIcon'
 
-const PLATFORM_META: Record<string, { name: string; icon: string; color: string }> = {
-  twitter:    { name: 'Twitter / X', icon: '𝕏',  color: '#1D9BF0' },
-  linkedin:   { name: 'LinkedIn',    icon: 'in', color: '#0A66C2' },
-  instagram:  { name: 'Instagram',   icon: '📸', color: '#E1306C' },
-  facebook:   { name: 'Facebook',    icon: 'f',  color: '#1877F2' },
-  tiktok:     { name: 'TikTok',      icon: '♪',  color: '#FF0050' },
-  youtube:    { name: 'YouTube',     icon: '▶',  color: '#FF0000' },
-  telegram:   { name: 'Telegram',    icon: '✈',  color: '#26A5E4' },
+const PLATFORM_META: Record<string, { name: string; color: string }> = {
+  twitter:    { name: 'Twitter / X', color: '#1D9BF0' },
+  linkedin:   { name: 'LinkedIn',    color: '#0A66C2' },
+  instagram:  { name: 'Instagram',   color: '#E1306C' },
+  facebook:   { name: 'Facebook',    color: '#1877F2' },
+  tiktok:     { name: 'TikTok',      color: '#FF0050' },
+  youtube:    { name: 'YouTube',     color: '#FF0000' },
+  telegram:   { name: 'Telegram',    color: '#26A5E4' },
+  whatsapp:   { name: 'WhatsApp',    color: '#25D366' },
 }
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -250,10 +252,10 @@ export default function AnalyticsPage() {
             <h2 className="pp-card__title">{t('analytics.byPlatform')}</h2>
           </div>
           <div className="pp-platform-breakdown">
-            {platformBreakdown.map(({ id, name, icon, color, posts: postCount }) => (
+            {platformBreakdown.map(({ id, name, color, posts: postCount }) => (
               <div key={id} className="pp-breakdown-row">
                 <div className="pp-breakdown-row__left">
-                  <div className="pp-platform-row__icon" style={{ background: color + '18', color }}>{icon}</div>
+                  <PlatformIcon platform={id} size={26} />
                   <span className="pp-breakdown-row__name">{name}</span>
                 </div>
                 <div className="pp-breakdown-row__bar-wrap">

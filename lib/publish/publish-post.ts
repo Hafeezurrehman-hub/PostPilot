@@ -201,13 +201,21 @@ export async function publishPost(postId: string): Promise<PublishOutcome[]> {
           mediaUrl: post.media_url,
         });
         break;
-      case "whatsapp":
+      case "whatsapp": {
+        let recipients: string[] = [];
+        try {
+          recipients = JSON.parse(decryptedConn.external_id || "[]");
+        } catch {
+          recipients = [];
+        }
         result = await publishToWhatsApp({
           accessToken,
           content: post.content,
           mediaUrl: post.media_url,
+          recipients,
         });
         break;
+      }
       case "telegram":
         result = await publishToTelegram({
           accessToken,
