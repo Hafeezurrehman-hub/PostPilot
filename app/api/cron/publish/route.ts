@@ -23,7 +23,7 @@ function getReceiver() {
 }
 
 // ── Shared publish logic ───────────────────────────────────────────
-async function runPublish(postId?: string) {
+async function runPublish(postId?: string, doPeriodicAnalyticsRefresh = true) {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -46,41 +46,68 @@ async function runPublish(postId?: string) {
     return { error: "Failed to fetch posts" };
   }
 
-  if (!duePosts || duePosts.length === 0) {
-    return { message: "No posts due.", published: 0 };
-  }
-
-  const { publishPost } = await import("@/lib/publish/publish-post");
   const results: Array<{ postId: string; success: boolean; error?: string }> = [];
 
-  for (const post of duePosts) {
-    try {
-      const outcomes = await publishPost(post.id);
-      const anySuccess = outcomes.some((o) => o.status === "success");
-      results.push({
-        postId: post.id,
-        success: anySuccess,
-        error: anySuccess ? undefined : outcomes.map((o) => `${o.platform}: ${o.error}`).join("; "),
-      });
-    } catch (err) {
-      console.error(`Publish: Post ${post.id} error:`, err);
-      results.push({
-        postId: post.id,
-        success: false,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
-      await supabase.from("posts").update({ status: "failed" }).eq("id", post.id);
+  if (duePosts && duePosts.length > 0) {
+    const { publishPost } = await import("@/lib/publish/publish-post");
+
+    for (const post of duePosts) {
+      try {
+        const outcomes = await publishPost(post.id);
+        const anySuccess = outcomes.some((o) => o.status === "success");
+        results.push({
+          postId: post.id,
+          success: anySuccess,
+          error: anySuccess ? undefined : outcomes.map((o) => `${o.platform}: ${o.error}`).join("; "),
+        });
+      } catch (err) {
+        console.error(`Publish: Post ${post.id} error:`, err);
+        results.push({
+          postId: post.id,
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
+        await supabase.from("posts").update({ status: "failed" }).eq("id", post.id);
+      }
     }
   }
 
-  // Analytics refresh
+  // Analytics refresh for posts that were just published this run
+  const { fetchPostAnalytics } = await import("@/lib/analytics/track");
   try {
-    const { fetchPostAnalytics } = await import("@/lib/analytics/track");
     for (const r of results) {
       if (r.success) await fetchPostAnalytics(r.postId);
     }
   } catch (err) {
-    console.error("Publish: Analytics error:", err);
+    console.error("Publish: Analytics error (just-published):", err);
+  }
+
+  // Analytics refresh for recently-published posts — engagement (likes,
+  // comments, shares) accumulates over time, so a post fetched once right
+  // after publishing will look like it has near-zero engagement forever
+  // unless we periodically re-fetch it. Refresh anything published in the
+  // last 7 days, capped to keep each cron run fast.
+  let recentAnalyticsRefreshed = 0;
+  if (doPeriodicAnalyticsRefresh) {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentlyPublished } = await supabase
+        .from("posts")
+        .select("id")
+        .eq("status", "published")
+        .gte("published_at", sevenDaysAgo)
+        .order("published_at", { ascending: false })
+        .limit(25);
+
+      for (const p of recentlyPublished ?? []) {
+        // Skip ones we just refreshed above in this same run
+        if (results.some((r) => r.postId === p.id && r.success)) continue;
+        await fetchPostAnalytics(p.id);
+        recentAnalyticsRefreshed++;
+      }
+    } catch (err) {
+      console.error("Publish: Analytics error (periodic refresh):", err);
+    }
   }
 
   // Recurring posts
@@ -94,8 +121,9 @@ async function runPublish(postId?: string) {
 
   const successCount = results.filter((r) => r.success).length;
   return {
-    message: `Published ${successCount}/${results.length}. Recurring: ${recurringResult.processed} processed.`,
+    message: `Published ${successCount}/${results.length}. Analytics refreshed: ${recentAnalyticsRefreshed}. Recurring: ${recurringResult.processed} processed.`,
     scheduled: { total: results.length, success: successCount },
+    analyticsRefreshed: recentAnalyticsRefreshed,
     recurring: recurringResult,
   };
 }
@@ -143,7 +171,7 @@ export async function POST(request: NextRequest) {
       // no postId — run full sweep
     }
 
-    const result = await runPublish(postId);
+    const result = await runPublish(postId, !postId); // skip the full 7-day sweep on individual QStash post triggers
     return NextResponse.json(result);
   }
 

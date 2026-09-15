@@ -1344,3 +1344,180 @@ html, body {
   text-decoration: underline;
   padding: 0;
 }
+/* ═══════════════════════════════════════
+   TELEGRAM CONNECT MODAL
+═══════════════════════════════════════ */
+.pp-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 300;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.pp-modal {
+  width: 100%; max-width: 420px;
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.pp-modal__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--pp-border);
+}
+.pp-modal__title { font-size: 1rem; font-weight: 700; }
+.pp-modal__body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.pp-modal__desc { font-size: 0.83rem; color: var(--pp-muted2); line-height: 1.5; }
+.pp-modal__steps {
+  font-size: 0.8rem; color: var(--pp-muted2);
+  line-height: 1.8; padding-left: 18px;
+}
+.pp-modal__steps code {
+  background: var(--pp-surface2);
+  padding: 1px 5px; border-radius: 4px;
+  font-size: 0.78rem; color: var(--pp-indigo);
+}
+.pp-modal__footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--pp-border);
+}
+/* ═══════════════════════════════════════
+   TOPBAR MOBILE OVERFLOW FIX
+═══════════════════════════════════════ */
+@media (max-width: 480px) {
+  .pp-topbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+  .pp-topbar__title {
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pp-topbar__right {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  /* Shrink the Upgrade button to icon-only on narrow screens */
+  .pp-upgrade-btn {
+    padding: 7px !important;
+  }
+  .pp-upgrade-btn__text {
+    display: none;
+  }
+  .pp-lang-badge {
+    display: none; /* keep just the globe icon, drop the EN/UR text */
+  }
+  .pp-theme-toggle,
+  .pp-topbar__bell {
+    width: 30px;
+    height: 30px;
+  }
+  .pp-avatar {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+}
+
+/* Avatar photo support */
+.pp-avatar {
+  overflow: hidden;
+}
+.pp-avatar__img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+/* ═══════════════════════════════════════
+   NOTIFICATIONS DROPDOWN
+═══════════════════════════════════════ */
+.pp-notif-wrap { position: relative; }
+
+.pp-topbar__bell { position: relative; }
+.pp-notif-dot {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 15px; height: 15px;
+  padding: 0 3px;
+  border-radius: 10px;
+  background: var(--pp-red);
+  color: #fff;
+  font-size: 0.6rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+
+.pp-notif-overlay {
+  position: fixed; inset: 0;
+  z-index: 150;
+}
+
+.pp-notif-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 320px; max-width: 88vw;
+  max-height: 420px;
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+  z-index: 160;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.pp-notif-dropdown__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pp-border);
+  font-size: 0.85rem; font-weight: 700;
+}
+.pp-notif-dropdown__markread {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 500;
+  color: var(--pp-indigo);
+  background: none; border: none; cursor: pointer;
+}
+.pp-notif-dropdown__list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+.pp-notif-dropdown__empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 32px 16px;
+  color: var(--pp-muted);
+  font-size: 0.82rem;
+}
+
+.pp-notif-item {
+  display: flex; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pp-border);
+}
+.pp-notif-item:last-child { border-bottom: none; }
+.pp-notif-item--unread { background: rgba(99,102,241,0.05); }
+.pp-notif-item__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-top: 5px; flex-shrink: 0;
+  background: var(--pp-muted);
+}
+.pp-notif-item__dot--success { background: var(--pp-green); }
+.pp-notif-item__dot--error { background: var(--pp-red); }
+.pp-notif-item__dot--info { background: var(--pp-indigo); }
+.pp-notif-item__title { font-size: 0.83rem; font-weight: 600; color: var(--pp-text); }
+.pp-notif-item__msg { font-size: 0.78rem; color: var(--pp-muted2); margin-top: 2px; }
+.pp-notif-item__time { font-size: 0.7rem; color: var(--pp-muted); margin-top: 4px; }
+
+@media (max-width: 480px) {
+  .pp-notif-dropdown { right: -8px; width: 300px; }
+}
+
+/* Platform icon container now holds an SVG brand icon instead of emoji/text */
+.pp-platform-card__icon,
+.pp-platform-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

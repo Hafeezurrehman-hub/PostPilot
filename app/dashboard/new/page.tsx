@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { PLATFORM_MEDIA_SPECS, aspectMatches } from '@/lib/platformMediaSpecs'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 import { getUserLocation, fetchPrayerTimes, checkNamazConflict, suggestClearTime, type PrayerTimes } from '@/lib/prayerTimes'
+import { PlatformIcon } from '@/components/PlatformIcon'
 import { Moon as MoonIcon } from 'lucide-react'
 
 const PLATFORMS = [
@@ -492,13 +493,13 @@ export default function NewPostPage() {
 
       {/* Platform toggles */}
       <div className="pp-platform-toggles">
-        {PLATFORMS.map(({ id, label, icon }) => (
+        {PLATFORMS.map(({ id, label }) => (
           <button
             key={id}
             className={`pp-toggle ${selected.includes(id) ? 'pp-toggle--active' : ''}`}
             onClick={() => toggle(id)}
           >
-            <span>{icon}</span>
+            <PlatformIcon platform={id} size={18} />
             {label}
             {selected.includes(id) && <span className="pp-toggle__dot" />}
           </button>
@@ -632,7 +633,7 @@ export default function NewPostPage() {
                   const p = PLATFORMS.find(p => p.id === id)!
                   return (
                     <div key={id} className="pp-platform-row" style={{ padding: '7px 10px' }}>
-                      <div className="pp-platform-row__icon">{p.icon}</div>
+                      <PlatformIcon platform={id} size={28} />
                       <span className="pp-platform-row__name">{p.label}</span>
                       <span className="pp-platform-row__status pp-platform-row__status--connected">● Ready</span>
                     </div>

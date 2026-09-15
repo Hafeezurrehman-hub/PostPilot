@@ -20,6 +20,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { language, setLanguage, t } = useLanguage()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [initials, setInitials] = useState('HA')
 
   const navItems = [
     { href: '/dashboard',           label: t('nav.dashboard'), icon: LayoutDashboard },
@@ -36,6 +38,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       document.documentElement.setAttribute('data-theme', saved)
     }
   }, [])
+
+  // Load profile photo + initials for the topbar avatar
+  useEffect(() => {
+    let isMounted = true
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !isMounted) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_url, full_name')
+        .eq('id', user.id)
+        .single()
+
+      if (!isMounted) return
+      if (profile?.avatar_url) setAvatarUrl(profile.avatar_url)
+      const name = profile?.full_name || user.email || ''
+      const parts = name.trim().split(/\s+/)
+      const computed = parts.length >= 2
+        ? (parts[0][0] + parts[1][0]).toUpperCase()
+        : name.slice(0, 2).toUpperCase()
+      if (computed) setInitials(computed)
+    }
+    loadProfile()
+    return () => { isMounted = false }
+  }, [supabase])
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -147,7 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="pp-topbar__right">
             <Link href="/dashboard/pricing" className="pp-btn pp-btn--purple pp-btn--sm pp-upgrade-btn">
               <Zap size={14} />
-              {t('nav.upgrade')}
+              <span className="pp-upgrade-btn__text">{t('nav.upgrade')}</span>
             </Link>
             <button className="pp-theme-toggle" onClick={toggleLanguage} title="Switch language / Zaban badlein">
               <Globe size={17} strokeWidth={1.8} />
@@ -159,7 +187,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button className="pp-topbar__bell">
               <Bell size={18} strokeWidth={1.8} />
             </button>
-            <div className="pp-avatar">HA</div>
+            <div className="pp-avatar">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="Profile" className="pp-avatar__img" />
+              ) : (
+                initials
+              )}
+            </div>
           </div>
         </header>
         <main className="pp-content">{children}</main>

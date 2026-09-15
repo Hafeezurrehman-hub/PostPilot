@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { User, Bell, Palette, Shield, Trash2, Save, Eye, EyeOff, Sun, Moon, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
+import { createClient } from '@/lib/supabase/client'
 
 export default function SettingsPage() {
   const { t } = useLanguage()
+  const supabase = createClient()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab]   = useState('profile')
   const [showPass, setShowPass]     = useState(false)
   const [saving, setSaving]         = useState(false)
@@ -23,6 +26,82 @@ export default function SettingsPage() {
   const [email, setEmail]           = useState('hafeez@example.com')
   const [bio, setBio]               = useState('Social media manager & developer')
   const [timezone, setTimezone]     = useState('Asia/Karachi')
+  const [avatarUrl, setAvatarUrl]   = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setEmail(user.email || '')
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar_url, full_name, bio, timezone')
+        .eq('id', user.id)
+        .single()
+      if (profile) {
+        if (profile.avatar_url) setAvatarUrl(profile.avatar_url)
+        if (profile.full_name) setName(profile.full_name)
+        if (profile.bio) setBio(profile.bio)
+        if (profile.timezone) setTimezone(profile.timezone)
+      }
+    }
+    loadProfile()
+  }, [supabase])
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be under 5MB.')
+      return
+    }
+
+    setUploadingAvatar(true)
+    const tid = toast.loading('Uploading photo...')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('You must be logged in.', { id: tid })
+        return
+      }
+
+      const ext = file.name.split('.').pop() || 'jpg'
+      const path = `${user.id}/avatar.${ext}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) {
+        toast.error(`Upload failed: ${uploadError.message}`, { id: tid })
+        return
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      // Cache-bust so the new photo shows immediately instead of the browser's cached old one
+      const freshUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+
+      const { error: upsertError } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, avatar_url: freshUrl }, { onConflict: 'id' })
+
+      if (upsertError) {
+        toast.error(`Could not save photo: ${upsertError.message}`, { id: tid })
+        return
+      }
+
+      setAvatarUrl(freshUrl)
+      toast.success('Profile photo updated!', { id: tid })
+    } finally {
+      setUploadingAvatar(false)
+      e.target.value = ''
+    }
+  }
 
   // Appearance
   const [theme, setTheme]           = useState<'dark'|'light'>('dark')
@@ -131,13 +210,33 @@ export default function SettingsPage() {
               <h2 className="pp-settings__panel-title">{t('settings.profile.title')}</h2>
 
               {/* Avatar */}
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarSelect}
+              />
               <div className="pp-avatar-row">
-                <div className="pp-avatar-lg">HA</div>
+                <div className="pp-avatar-lg" style={{ overflow: 'hidden', cursor: 'pointer' }} onClick={() => avatarInputRef.current?.click()}>
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatarUrl} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    'HA'
+                  )}
+                </div>
                 <div>
                   <p style={{ fontWeight: 600, fontSize: '0.9rem' }}>{t('settings.profile.photo')}</p>
-                  <p style={{ color: 'var(--pp-muted2)', fontSize: '0.8rem', marginTop: 2 }}>
-                    {t('settings.profile.photoDesc')}
-                  </p>
+                  <button
+                    type="button"
+                    className="pp-link"
+                    style={{ fontSize: '0.8rem', marginTop: 4 }}
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                  >
+                    {uploadingAvatar ? 'Uploading...' : avatarUrl ? 'Change photo' : 'Upload photo'}
+                  </button>
                 </div>
               </div>
 

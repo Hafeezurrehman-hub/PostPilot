@@ -23,6 +23,7 @@ import { publishToMastodon } from "./mastodon";
 import { publishToBluesky } from "./bluesky";
 import { publishToGoogleBusiness } from "./google-business";
 import { publishToWhatsApp } from "./whatsapp";
+import { publishToTelegram } from "./telegram";
 import { isTokenExpired, ensureValidToken } from "./refresh-token";
 
 export interface PublishOutcome {
@@ -94,20 +95,24 @@ export async function publishPost(postId: string): Promise<PublishOutcome[]> {
     };
 
     let accessToken = decryptedConn.access_token;
-    try {
-      accessToken = await ensureValidToken(decryptedConn);
-    } catch {
-      // Refresh failed — continue with old token, publish will likely fail
-    }
 
-    // Agar token expired hai aur refresh bhi fail hai, to error de do
-    if (isTokenExpired(decryptedConn) && accessToken === decryptedConn.access_token) {
-      outcomes.push({
-        platform,
-        status: "failed",
-        error: "Access token expired. Please reconnect this platform.",
-      });
-      continue;
+    // Telegram uses a static Bot Token, not an OAuth token — no refresh needed
+    if (platform !== "telegram") {
+      try {
+        accessToken = await ensureValidToken(decryptedConn);
+      } catch {
+        // Refresh failed — continue with old token, publish will likely fail
+      }
+
+      // Agar token expired hai aur refresh bhi fail hai, to error de do
+      if (isTokenExpired(decryptedConn) && accessToken === decryptedConn.access_token) {
+        outcomes.push({
+          platform,
+          status: "failed",
+          error: "Access token expired. Please reconnect this platform.",
+        });
+        continue;
+      }
     }
 
     let result;
@@ -203,6 +208,15 @@ export async function publishPost(postId: string): Promise<PublishOutcome[]> {
           mediaUrl: post.media_url,
         });
         break;
+      case "telegram":
+        result = await publishToTelegram({
+          accessToken,
+          chatId: decryptedConn.external_id ?? "",
+          content: post.content,
+          mediaUrl: post.media_url,
+          mediaType: post.media_type,
+        });
+        break;
       default:
         result = { success: false, error: `Unknown platform: ${platform}` };
     }
@@ -234,6 +248,29 @@ export async function publishPost(postId: string): Promise<PublishOutcome[]> {
         : { status: "failed" }
     )
     .eq("id", postId);
+
+  // Notify the user via the bell icon
+  try {
+    const platformList = outcomes.map((o) => o.platform).join(", ");
+    if (anySuccess) {
+      await supabase.from("notifications").insert({
+        user_id: post.user_id,
+        title: "Post published",
+        message: `Your post went live on ${platformList}.`,
+        type: "success",
+      });
+    } else {
+      const firstError = outcomes[0]?.error ?? "Unknown error";
+      await supabase.from("notifications").insert({
+        user_id: post.user_id,
+        title: "Post failed to publish",
+        message: firstError,
+        type: "error",
+      });
+    }
+  } catch (err) {
+    console.error("Publish: Could not create notification:", err);
+  }
 
   return outcomes;
 }

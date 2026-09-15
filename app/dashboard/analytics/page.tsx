@@ -1,32 +1,66 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   BarChart2, TrendingUp, Users, FileText,
   ArrowUp, ArrowDown, Minus,
-    Clock
+  Clock
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 
-const PLATFORM_STATS = [
-  { name: 'Twitter / X', icon: '𝕏', color: '#1D9BF0', posts: 0, reach: 0, engagement: 0 },
-  { name: 'LinkedIn',    icon: 'in', color: '#0A66C2', posts: 0, reach: 0, engagement: 0 },
-  { name: 'Instagram',   icon: '📸', color: '#E1306C', posts: 0, reach: 0, engagement: 0 },
-  { name: 'Facebook',    icon: 'f',  color: '#1877F2', posts: 0, reach: 0, engagement: 0 },
-  { name: 'TikTok',      icon: '♪',  color: '#FF0050', posts: 0, reach: 0, engagement: 0 },
-  { name: 'YouTube',     icon: '▶',  color: '#FF0000', posts: 0, reach: 0, engagement: 0 },
-]
-
-const RECENT_POSTS: any[] = [
-  // Empty for now — will populate from Supabase
-]
+const PLATFORM_META: Record<string, { name: string; icon: string; color: string }> = {
+  twitter:    { name: 'Twitter / X', icon: '𝕏',  color: '#1D9BF0' },
+  linkedin:   { name: 'LinkedIn',    icon: 'in', color: '#0A66C2' },
+  instagram:  { name: 'Instagram',   icon: '📸', color: '#E1306C' },
+  facebook:   { name: 'Facebook',    icon: 'f',  color: '#1877F2' },
+  tiktok:     { name: 'TikTok',      icon: '♪',  color: '#FF0050' },
+  youtube:    { name: 'YouTube',     icon: '▶',  color: '#FF0000' },
+  telegram:   { name: 'Telegram',    icon: '✈',  color: '#26A5E4' },
+}
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-const CHART_DATA = [0, 0, 0, 0, 0, 0, 0]
-const MAX_VAL = Math.max(...CHART_DATA, 1)
+
+type Post = {
+  id: string
+  content: string
+  platforms: string[]
+  status: string
+  created_at: string
+  published_at: string | null
+  scheduled_for: string | null
+}
+
+type AnalyticsRow = {
+  post_id: string
+  platform: string
+  reach: number | null
+  impressions: number | null
+  likes: number | null
+  comments: number | null
+  shares: number | null
+}
+
+function dateRangeCutoff(filterKey: string): Date | null {
+  const now = new Date()
+  switch (filterKey) {
+    case 'last7': return new Date(now.getTime() - 7 * 86400000)
+    case 'last30': return new Date(now.getTime() - 30 * 86400000)
+    case 'last90': return new Date(now.getTime() - 90 * 86400000)
+    default: return null // all time
+  }
+}
 
 export default function AnalyticsPage() {
   const { t } = useLanguage()
+  const supabase = createClient()
+
+  const [dateFilter, setDateFilter] = useState('last7')
+  const [chartTab, setChartTab] = useState<'posts' | 'reach'>('posts')
+  const [loading, setLoading] = useState(true)
+  const [posts, setPosts] = useState<Post[]>([])
+  const [analytics, setAnalytics] = useState<AnalyticsRow[]>([])
+  const [connectedCount, setConnectedCount] = useState(0)
 
   const DATE_FILTERS = [
     { key: 'last7', label: t('analytics.filter.last7') },
@@ -34,18 +68,102 @@ export default function AnalyticsPage() {
     { key: 'last90', label: t('analytics.filter.last90') },
     { key: 'allTime', label: t('analytics.filter.allTime') },
   ]
+  const activeFilterLabel = DATE_FILTERS.find(f => f.key === dateFilter)?.label
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setLoading(false); return }
+
+    const cutoff = dateRangeCutoff(dateFilter)
+
+    let query = supabase
+      .from('posts')
+      .select('id, content, platforms, status, created_at, published_at, scheduled_for')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (cutoff) query = query.gte('created_at', cutoff.toISOString())
+
+    const [{ data: postsData }, { count: connCount }] = await Promise.all([
+      query,
+      supabase.from('platform_connections').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    ])
+
+    const fetchedPosts = (postsData as Post[]) || []
+    setPosts(fetchedPosts)
+    setConnectedCount(connCount || 0)
+
+    const postIds = fetchedPosts.map(p => p.id)
+    if (postIds.length > 0) {
+      const { data: analyticsData } = await supabase
+        .from('post_analytics')
+        .select('post_id, platform, reach, impressions, likes, comments, shares')
+        .in('post_id', postIds)
+      setAnalytics((analyticsData as AnalyticsRow[]) || [])
+    } else {
+      setAnalytics([])
+    }
+
+    setLoading(false)
+  }, [supabase, dateFilter])
+
+  useEffect(() => { load() }, [load])
+
+  // ── Derived stats ──
+  const publishedPosts = posts.filter(p => p.status === 'published')
+  const scheduledPosts = posts.filter(p => p.status === 'scheduled')
+  const totalReach = analytics.reduce((sum, a) => sum + (a.reach || 0), 0)
+  const platformsUsedSet = new Set(posts.flatMap(p => p.platforms || []))
 
   const STATS = [
-    { label: t('analytics.stat.totalPosts'), value: '0', change: 0, icon: FileText, color: 'var(--pp-indigo)' },
-    { label: t('analytics.stat.totalReach'), value: '0', change: 0, icon: TrendingUp, color: 'var(--pp-purple)' },
-    { label: t('analytics.stat.platformsUsed'), value: '0', change: 0, icon: Users, color: 'var(--pp-green)' },
-    { label: t('analytics.stat.scheduled'), value: '0', change: 0, icon: Clock, color: 'var(--pp-amber)' },
+    { label: t('analytics.stat.totalPosts'), value: String(posts.length), change: 0, icon: FileText, color: 'var(--pp-indigo)' },
+    { label: t('analytics.stat.totalReach'), value: totalReach.toLocaleString(), change: 0, icon: TrendingUp, color: 'var(--pp-purple)' },
+    { label: t('analytics.stat.platformsUsed'), value: String(platformsUsedSet.size || connectedCount), change: 0, icon: Users, color: 'var(--pp-green)' },
+    { label: t('analytics.stat.scheduled'), value: String(scheduledPosts.length), change: 0, icon: Clock, color: 'var(--pp-amber)' },
   ]
 
-  const [dateFilter, setDateFilter] = useState('last7')
-  const [chartTab, setChartTab] = useState<'posts' | 'reach'>('posts')
+  // Posts-over-time — last 7 days, Mon–Sun buckets based on published/created date
+  const chartData = (() => {
+    const now = new Date()
+    const buckets = new Array(7).fill(0)
+    const sourcePosts = publishedPosts.length > 0 ? publishedPosts : posts
+    for (const p of sourcePosts) {
+      const d = new Date(p.published_at || p.created_at)
+      const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000)
+      if (diffDays >= 0 && diffDays < 7) {
+        const dayIdx = (d.getDay() + 6) % 7 // convert Sun=0 to Mon=0 index
+        if (chartTab === 'posts') {
+          buckets[dayIdx] += 1
+        } else {
+          const postReach = analytics.filter(a => a.post_id === p.id).reduce((s, a) => s + (a.reach || 0), 0)
+          buckets[dayIdx] += postReach
+        }
+      }
+    }
+    return buckets
+  })()
+  const maxChartVal = Math.max(...chartData, 1)
+  const hasChartData = chartData.some(v => v > 0)
 
-  const activeFilterLabel = DATE_FILTERS.find(f => f.key === dateFilter)?.label
+  // Platform breakdown
+  const platformBreakdown = Object.keys(PLATFORM_META).map(id => {
+    const postsForPlatform = posts.filter(p => p.platforms?.includes(id)).length
+    return { id, ...PLATFORM_META[id], posts: postsForPlatform }
+  })
+  const maxPlatformPosts = Math.max(...platformBreakdown.map(p => p.posts), 1)
+
+  // Recent posts table
+  const recentPosts = posts.slice(0, 10).map(p => {
+    const reach = analytics.filter(a => a.post_id === p.id).reduce((s, a) => s + (a.reach || 0), 0)
+    return {
+      content: p.content.length > 50 ? p.content.slice(0, 50) + '…' : p.content,
+      platform: (p.platforms || []).join(', ') || '—',
+      status: p.status,
+      date: new Date(p.published_at || p.scheduled_for || p.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      reach,
+    }
+  })
 
   return (
     <div className="pp-analytics">
@@ -56,7 +174,6 @@ export default function AnalyticsPage() {
           <h1 className="pp-analytics__title">{t('analytics.title')}</h1>
           <p className="pp-analytics__sub">{t('analytics.subtitle')}</p>
         </div>
-        {/* Date filter */}
         <div className="pp-date-filters">
           {DATE_FILTERS.map(f => (
             <button
@@ -81,7 +198,7 @@ export default function AnalyticsPage() {
                 {change === 0 ? t('analytics.noData') : `${Math.abs(change)}%`}
               </div>
             </div>
-            <div className="pp-stat-card__value">{value}</div>
+            <div className="pp-stat-card__value">{loading ? '—' : value}</div>
             <div className="pp-stat-card__label">{label}</div>
           </div>
         ))}
@@ -90,7 +207,6 @@ export default function AnalyticsPage() {
       {/* Chart + Platform breakdown */}
       <div className="pp-analytics__grid">
 
-        {/* Bar Chart */}
         <div className="pp-card pp-chart-card">
           <div className="pp-card__header">
             <h2 className="pp-card__title">{t('analytics.postsOverTime')}</h2>
@@ -106,37 +222,36 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Chart */}
           <div className="pp-bar-chart">
             <div className="pp-bar-chart__bars">
-              {CHART_DATA.map((val, i) => (
+              {chartData.map((val, i) => (
                 <div key={i} className="pp-bar-chart__col">
                   <div className="pp-bar-chart__bar-wrap">
                     <div
                       className="pp-bar-chart__bar"
-                      style={{ height: `${(val / MAX_VAL) * 100}%` }}
+                      style={{ height: `${(val / maxChartVal) * 100}%` }}
                     />
                   </div>
                   <span className="pp-bar-chart__label">{DAYS[i]}</span>
                 </div>
               ))}
             </div>
-            {/* Empty state overlay */}
-            <div className="pp-chart-empty">
-              <BarChart2 size={36} strokeWidth={1.2} />
-              <p>{t('analytics.chart.emptyState')}</p>
-            </div>
+            {!hasChartData && !loading && (
+              <div className="pp-chart-empty">
+                <BarChart2 size={36} strokeWidth={1.2} />
+                <p>{t('analytics.chart.emptyState')}</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Platform breakdown */}
         <div className="pp-card">
           <div className="pp-card__header">
             <h2 className="pp-card__title">{t('analytics.byPlatform')}</h2>
           </div>
           <div className="pp-platform-breakdown">
-            {PLATFORM_STATS.map(({ name, icon, color, posts }) => (
-              <div key={name} className="pp-breakdown-row">
+            {platformBreakdown.map(({ id, name, icon, color, posts: postCount }) => (
+              <div key={id} className="pp-breakdown-row">
                 <div className="pp-breakdown-row__left">
                   <div className="pp-platform-row__icon" style={{ background: color + '18', color }}>{icon}</div>
                   <span className="pp-breakdown-row__name">{name}</span>
@@ -144,10 +259,10 @@ export default function AnalyticsPage() {
                 <div className="pp-breakdown-row__bar-wrap">
                   <div
                     className="pp-breakdown-row__bar"
-                    style={{ width: `${posts > 0 ? (posts / Math.max(...PLATFORM_STATS.map(p => p.posts), 1)) * 100 : 0}%`, background: color }}
+                    style={{ width: `${postCount > 0 ? (postCount / maxPlatformPosts) * 100 : 0}%`, background: color }}
                   />
                 </div>
-                <span className="pp-breakdown-row__count">{posts}</span>
+                <span className="pp-breakdown-row__count">{postCount}</span>
               </div>
             ))}
           </div>
@@ -160,7 +275,9 @@ export default function AnalyticsPage() {
           <h2 className="pp-card__title">{t('analytics.recentPosts')}</h2>
           <span style={{ fontSize: '0.78rem', color: 'var(--pp-muted2)' }}>{activeFilterLabel}</span>
         </div>
-        {RECENT_POSTS.length === 0 ? (
+        {loading ? (
+          <p className="pp-card__desc">Loading...</p>
+        ) : recentPosts.length === 0 ? (
           <div className="pp-empty" style={{ padding: '40px 20px' }}>
             <FileText size={36} strokeWidth={1.2} className="pp-empty__icon" />
             <p className="pp-empty__text">{t('analytics.noPostsInPeriod')}</p>
@@ -169,6 +286,7 @@ export default function AnalyticsPage() {
             </a>
           </div>
         ) : (
+          <div className="pp-table-wrap">
           <table className="pp-table">
             <thead>
               <tr>
@@ -180,17 +298,18 @@ export default function AnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {RECENT_POSTS.map((post: any, i) => (
+              {recentPosts.map((post, i) => (
                 <tr key={i}>
                   <td>{post.content}</td>
                   <td>{post.platform}</td>
                   <td>{post.status}</td>
                   <td>{post.date}</td>
-                  <td>{post.reach}</td>
+                  <td>{post.reach.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
