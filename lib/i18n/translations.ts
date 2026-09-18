@@ -12,6 +12,7 @@ export const translations: Record<Language, Dictionary> = {
     'nav.newPost': 'New Post',
     'nav.accounts': 'Accounts',
     'nav.analytics': 'Analytics',
+    'nav.calendar': 'Calendar',
     'nav.settings': 'Settings',
     'nav.menu': 'Menu',
     'nav.freePlan': 'Free Plan',
@@ -19,7 +20,9 @@ export const translations: Record<Language, Dictionary> = {
     'nav.upgrade': 'Upgrade',
 
     // Dashboard home
-    'dashboard.greeting': 'Good evening',
+    'dashboard.greetingMorning': 'Good morning',
+    'dashboard.greetingAfternoon': 'Good afternoon',
+    'dashboard.greetingEvening': 'Good evening',
     'dashboard.subGreeting': 'You have {count} post{plural} scheduled. Ready to create?',
     'dashboard.newPost': 'New Post',
     'dashboard.postsPublished': 'Posts Published',
@@ -203,6 +206,7 @@ export const translations: Record<Language, Dictionary> = {
     'nav.newPost': 'Naya Post',
     'nav.accounts': 'Accounts',
     'nav.analytics': 'Analytics',
+    'nav.calendar': 'Calendar',
     'nav.settings': 'Settings',
     'nav.menu': 'Menu',
     'nav.freePlan': 'Free Plan',
@@ -210,7 +214,9 @@ export const translations: Record<Language, Dictionary> = {
     'nav.upgrade': 'Upgrade',
 
     // Dashboard home
-    'dashboard.greeting': 'Shaam bakhair',
+    'dashboard.greetingMorning': 'Subah bakhair',
+    'dashboard.greetingAfternoon': 'Dopeher bakhair',
+    'dashboard.greetingEvening': 'Shaam bakhair',
     'dashboard.subGreeting': 'Aapke {count} post{plural} schedule hain. Naya banana hai?',
     'dashboard.newPost': 'Naya Post',
     'dashboard.postsPublished': 'Posts Published',

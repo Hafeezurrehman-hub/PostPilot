@@ -1,11 +1,16 @@
 /**
- * AI Caption Generator — OpenAI API se post captions generate karo.
+ * AI Caption Generator — Google Gemini API se post captions generate karo.
  *
  * Features:
  * - Topic/keyword se caption generate karo
  * - Platform-specific character limits follow karo
  * - Tone customize karo (professional, casual, funny, etc.)
  * - Hashtags automatically add karo
+ *
+ * Uses the `gemini-flash-latest` alias, which Google always points at
+ * their current fastest GA model — this avoids hardcoding a specific
+ * model version that could get deprecated later (Gemini model names
+ * change frequently).
  */
 
 export interface GenerateCaptionParams {
@@ -22,6 +27,17 @@ const PLATFORM_LIMITS: Record<string, number> = {
   linkedin: 3000,
   facebook: 63206,
   instagram: 2200,
+  tiktok: 2200,
+  youtube: 5000,
+  pinterest: 500,
+  reddit: 40000,
+  threads: 500,
+  bluesky: 300,
+  mastodon: 500,
+  telegram: 4096,
+  whatsapp: 4096,
+  "google-business": 1500,
+  google_business: 1500,
 };
 
 const TONE_PROMPTS: Record<string, string> = {
@@ -32,13 +48,15 @@ const TONE_PROMPTS: Record<string, string> = {
   informative: "Write in an informative, educational tone that teaches something",
 };
 
+const GEMINI_MODEL = "gemini-flash-latest";
+
 export async function generateCaption(
   params: GenerateCaptionParams
 ): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY not configured");
+    throw new Error("GEMINI_API_KEY not configured");
   }
 
   const limit = params.maxLength ?? PLATFORM_LIMITS[params.platform] ?? 280;
@@ -54,39 +72,51 @@ export async function generateCaption(
   const systemPrompt = `You are a social media content creator. Write engaging posts for ${params.platform}.
 ${tone}. Keep it under ${limit} characters.
 ${hashtagInstruction}${voiceInstructions}
-Only return the post text, nothing else. No quotes, no labels.`;
+Only return the post text, nothing else. No quotes, no labels, no markdown formatting.`;
 
   const userPrompt = `Write a ${params.platform} post about: ${params.topic}`;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: Math.ceil(limit / 2), // Approximate token count
-      temperature: 0.8,
-    }),
-  });
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: userPrompt }],
+          },
+        ],
+        generationConfig: {
+          maxOutputTokens: Math.ceil(limit / 3), // rough token estimate
+          temperature: 0.8,
+        },
+      }),
+    }
+  );
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}));
     throw new Error(
-      errBody?.error?.message ?? `OpenAI API failed: ${res.status}`
+      errBody?.error?.message ?? `Gemini API failed: ${res.status}`
     );
   }
 
   const data = await res.json();
-  const caption = data?.choices?.[0]?.message?.content?.trim();
+  const caption = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
   if (!caption) {
-    throw new Error("No caption generated");
+    // Gemini can refuse/empty-out on safety grounds — surface that clearly
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    throw new Error(
+      finishReason && finishReason !== "STOP"
+        ? `Gemini did not return a caption (${finishReason})`
+        : "No caption generated"
+    );
   }
 
   return caption.slice(0, limit);

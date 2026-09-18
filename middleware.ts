@@ -39,7 +39,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Already logged in — skip the login screen entirely
   if (user && path === "/login") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Already logged in — skip the marketing landing page too, go straight
+  // to the dashboard instead of showing "Get started" / "Log in" again.
+  if (user && path === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     url.search = "";

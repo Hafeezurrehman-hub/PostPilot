@@ -2,7 +2,9 @@
  * POST /api/ai/caption
  *
  * AI se caption generate karo.
- * Body: { topic, platform, tone?, includeHashtags? }
+ * Accepts either shape (for backward/forward compatibility):
+ *   { topic, platform, tone?, includeHashtags? }
+ *   { prompt, platforms, tone?, includeHashtags? }  ← what the New Post page actually sends
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -38,6 +40,8 @@ export async function POST(request: NextRequest) {
   let body: {
     topic?: string;
     platform?: string;
+    prompt?: string;
+    platforms?: string[];
     tone?: string;
     includeHashtags?: boolean;
     multiple?: boolean;
@@ -49,28 +53,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!body.topic || !body.platform) {
+  // The New Post composer sends { prompt, platforms: [] } — normalize that
+  // to the { topic, platform } shape the generator expects. When multiple
+  // platforms are selected, target the one with the tightest character
+  // limit so the caption fits everywhere it's being posted.
+  const topic = body.topic ?? body.prompt;
+  const platform = body.platform ?? body.platforms?.[0];
+
+  if (!topic || !platform) {
     return NextResponse.json(
-      { error: "topic and platform are required" },
+      { error: "topic/prompt and platform/platforms are required" },
       { status: 400 }
     );
   }
 
   try {
     if (body.multiple) {
-      // Multiple options generate karo
       const options = await generateCaptionOptions({
-        topic: body.topic,
-        platform: body.platform,
+        topic,
+        platform,
         tone: body.tone as "professional" | "casual" | "funny" | "inspirational" | "informative",
         includeHashtags: body.includeHashtags,
       });
       return NextResponse.json({ options });
     } else {
-      // Single caption generate karo
       const caption = await generateCaption({
-        topic: body.topic,
-        platform: body.platform,
+        topic,
+        platform,
         tone: body.tone as "professional" | "casual" | "funny" | "inspirational" | "informative",
         includeHashtags: body.includeHashtags,
       });

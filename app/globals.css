@@ -1521,3 +1521,294 @@ html, body {
   align-items: center;
   justify-content: center;
 }
+/* ═══════════════════════════════════════
+   CONTENT CALENDAR
+═══════════════════════════════════════ */
+.pp-calendar { display: flex; flex-direction: column; gap: 18px; }
+
+.pp-calendar__header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.pp-calendar__title { font-size: 1.4rem; font-weight: 700; }
+.pp-calendar__sub { color: var(--pp-muted2); font-size: 0.85rem; margin-top: 3px; }
+
+.pp-calendar__nav {
+  display: flex; align-items: center; gap: 10px;
+}
+.pp-calendar__month { font-size: 1rem; font-weight: 700; min-width: 160px; text-align: center; }
+
+.pp-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--pp-border);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  overflow: hidden;
+}
+.pp-cal-grid__daylabel {
+  background: var(--pp-surface2);
+  padding: 8px;
+  font-size: 0.7rem; font-weight: 700;
+  color: var(--pp-muted2);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pp-cal-cell {
+  background: var(--pp-surface);
+  min-height: 92px;
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.pp-cal-cell--outside { background: var(--pp-bg); opacity: 0.5; }
+.pp-cal-cell--today { background: rgba(99,102,241,0.06); }
+.pp-cal-cell__num {
+  font-size: 0.75rem; font-weight: 600; color: var(--pp-muted2);
+}
+.pp-cal-cell--today .pp-cal-cell__num {
+  color: var(--pp-indigo);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: rgba(99,102,241,0.15);
+  display: flex; align-items: center; justify-content: center;
+}
+.pp-cal-cell__chips { display: flex; flex-direction: column; gap: 3px; }
+
+.pp-cal-chip {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.65rem; font-weight: 500;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.pp-cal-chip__text { overflow: hidden; text-overflow: ellipsis; }
+.pp-cal-chip--scheduled { background: rgba(99,102,241,0.14); color: var(--pp-indigo); }
+.pp-cal-chip--published { background: rgba(16,185,129,0.14); color: var(--pp-green); }
+.pp-cal-chip--failed { background: rgba(239,68,68,0.14); color: var(--pp-red); }
+.pp-cal-chip--draft { background: var(--pp-surface2); color: var(--pp-muted2); }
+.pp-cal-chip--more {
+  color: var(--pp-muted); font-size: 0.63rem;
+  justify-content: center; background: none;
+}
+
+.pp-cal-legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  font-size: 0.75rem; color: var(--pp-muted2);
+}
+.pp-cal-legend span { display: flex; align-items: center; gap: 5px; }
+.pp-cal-legend__dot { width: 8px; height: 8px; border-radius: 50%; }
+.pp-cal-legend__dot--scheduled { background: var(--pp-indigo); }
+.pp-cal-legend__dot--published { background: var(--pp-green); }
+.pp-cal-legend__dot--failed { background: var(--pp-red); }
+.pp-cal-legend__dot--draft { background: var(--pp-muted2); }
+
+@media (max-width: 768px) {
+  .pp-cal-cell { min-height: 70px; padding: 4px; }
+  .pp-cal-grid__daylabel { font-size: 0.6rem; padding: 6px 2px; }
+  .pp-cal-chip__text { display: none; } /* icon-only chips on mobile */
+  .pp-cal-chip { justify-content: center; padding: 3px; }
+}
+/* ═══════════════════════════════════════
+   NOTIFICATIONS DROPDOWN
+═══════════════════════════════════════ */
+.pp-notif-wrap { position: relative; }
+
+.pp-topbar__bell { position: relative; }
+.pp-notif-dot {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 15px; height: 15px;
+  padding: 0 3px;
+  border-radius: 10px;
+  background: var(--pp-red);
+  color: #fff;
+  font-size: 0.6rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+
+.pp-notif-overlay {
+  position: fixed; inset: 0;
+  z-index: 150;
+}
+
+.pp-notif-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  width: 320px; max-width: 88vw;
+  max-height: 420px;
+  background: var(--pp-surface);
+  border: 1px solid var(--pp-border);
+  border-radius: var(--pp-radius);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+  z-index: 160;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.pp-notif-dropdown__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pp-border);
+  font-size: 0.85rem; font-weight: 700;
+}
+.pp-notif-dropdown__markread {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 0.72rem; font-weight: 500;
+  color: var(--pp-indigo);
+  background: none; border: none; cursor: pointer;
+}
+.pp-notif-dropdown__list {
+  overflow-y: auto;
+  max-height: 360px;
+}
+.pp-notif-dropdown__empty {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding: 32px 16px;
+  color: var(--pp-muted);
+  font-size: 0.82rem;
+}
+
+.pp-notif-item {
+  display: flex; gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pp-border);
+}
+.pp-notif-item:last-child { border-bottom: none; }
+.pp-notif-item--unread { background: rgba(99,102,241,0.05); }
+.pp-notif-item__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-top: 5px; flex-shrink: 0;
+  background: var(--pp-muted);
+}
+.pp-notif-item__dot--success { background: var(--pp-green); }
+.pp-notif-item__dot--error { background: var(--pp-red); }
+.pp-notif-item__dot--info { background: var(--pp-indigo); }
+.pp-notif-item__title { font-size: 0.83rem; font-weight: 600; color: var(--pp-text); }
+.pp-notif-item__msg { font-size: 0.78rem; color: var(--pp-muted2); margin-top: 2px; }
+.pp-notif-item__time { font-size: 0.7rem; color: var(--pp-muted); margin-top: 4px; }
+
+@media (max-width: 480px) {
+  .pp-notif-dropdown { right: -8px; width: 300px; }
+}
+
+/* Platform icon container now holds an SVG brand icon instead of emoji/text */
+.pp-platform-card__icon,
+.pp-platform-row__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Bell icon highlights while the dropdown is open */
+.pp-topbar__bell--active {
+  color: var(--pp-indigo);
+  background: rgba(99,102,241,0.12);
+}
+/* ═══════════════════════════════════════
+   PRICING PAGE
+═══════════════════════════════════════ */
+.pp-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 8px;
+}
+
+.pp-pricing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 26px 22px;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.pp-pricing-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(99,102,241,0.3);
+}
+.pp-pricing-card--highlighted {
+  border-color: var(--pp-indigo);
+  background: linear-gradient(160deg, rgba(99,102,241,0.08), var(--pp-surface) 60%);
+  box-shadow: 0 8px 30px rgba(99,102,241,0.15);
+}
+
+.pp-pricing-card__badge {
+  position: absolute;
+  top: -12px;
+  left: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--pp-indigo);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.4);
+}
+
+.pp-pricing-card__price {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 14px 0 4px;
+}
+.pp-pricing-card__amount {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--pp-text);
+  letter-spacing: -0.02em;
+}
+.pp-pricing-card__period {
+  font-size: 0.85rem;
+  color: var(--pp-muted2);
+}
+
+.pp-pricing-card .pp-card__desc {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--pp-border);
+  margin-bottom: 18px;
+}
+
+.pp-pricing-card__features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  flex: 1;
+  margin-bottom: 22px;
+}
+.pp-pricing-card__features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 0.85rem;
+  color: var(--pp-muted2);
+  line-height: 1.5;
+}
+.pp-pricing-card__check {
+  color: var(--pp-green);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pp-pricing-card__cta {
+  width: 100%;
+  justify-content: center;
+}
+.pp-pricing-card__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none !important;
+}
+
+@media (max-width: 900px) {
+  .pp-pricing-grid {
+    grid-template-columns: 1fr;
+  }
+  .pp-pricing-card--highlighted {
+    order: -1;
+  }
+}

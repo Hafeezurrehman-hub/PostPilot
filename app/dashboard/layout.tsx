@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard, PenSquare, Users,
   BarChart2, Settings, LogOut, Zap,
-  Menu, X, Bell, Sun, Moon, Globe,
+  Menu, X, Bell, Sun, Moon, Globe, CheckCheck, Calendar,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
@@ -22,10 +22,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [initials, setInitials] = useState('HA')
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string | null; type: string; read: boolean; created_at: string }>>([])
 
   const navItems = [
     { href: '/dashboard',           label: t('nav.dashboard'), icon: LayoutDashboard },
     { href: '/dashboard/new',       label: t('nav.newPost'),   icon: PenSquare },
+    { href: '/dashboard/calendar',  label: t('nav.calendar'),  icon: Calendar },
     { href: '/dashboard/connect',   label: t('nav.accounts'),  icon: Users },
     { href: '/dashboard/analytics', label: t('nav.analytics'), icon: BarChart2 },
     { href: '/dashboard/settings',  label: t('nav.settings'),  icon: Settings },
@@ -64,6 +67,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     loadProfile()
     return () => { isMounted = false }
   }, [supabase])
+
+  useEffect(() => {
+    let isMounted = true
+    const loadNotifications = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !isMounted) return
+      const { data } = await supabase
+        .from('notifications')
+        .select('id, title, message, type, read, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (isMounted && data) setNotifications(data)
+    }
+    loadNotifications()
+    return () => { isMounted = false }
+  }, [supabase])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  const markAllRead = async () => {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id)
+    if (unreadIds.length === 0) return
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    await supabase.from('notifications').update({ read: true }).in('id', unreadIds)
+  }
 
   const toggleTheme = () => {
     const next = theme === 'dark' ? 'light' : 'dark'
@@ -184,9 +213,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <button className="pp-theme-toggle" onClick={toggleTheme} title="Toggle theme">
               {theme === 'dark' ? <Sun size={17} strokeWidth={1.8} /> : <Moon size={17} strokeWidth={1.8} />}
             </button>
-            <button className="pp-topbar__bell">
-              <Bell size={18} strokeWidth={1.8} />
-            </button>
+            <div className="pp-notif-wrap">
+              <button className={`pp-topbar__bell ${notifOpen ? 'pp-topbar__bell--active' : ''}`} onClick={() => setNotifOpen(v => !v)}>
+                <Bell size={18} strokeWidth={1.8} />
+                {unreadCount > 0 && <span className="pp-notif-dot">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+              </button>
+              {notifOpen && (
+                <>
+                  <div className="pp-notif-overlay" onClick={() => setNotifOpen(false)} />
+                  <div className="pp-notif-dropdown">
+                    <div className="pp-notif-dropdown__header">
+                      <span>Notifications</span>
+                      {unreadCount > 0 && (
+                        <button className="pp-notif-dropdown__markread" onClick={markAllRead}>
+                          <CheckCheck size={12} /> Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="pp-notif-dropdown__list">
+                      {notifications.length === 0 ? (
+                        <div className="pp-notif-dropdown__empty">
+                          <Bell size={24} strokeWidth={1.2} />
+                          <p>No notifications yet</p>
+                        </div>
+                      ) : (
+                        notifications.map(n => (
+                          <div key={n.id} className={`pp-notif-item ${!n.read ? 'pp-notif-item--unread' : ''}`}>
+                            <div className={`pp-notif-item__dot pp-notif-item__dot--${n.type}`} />
+                            <div>
+                              <p className="pp-notif-item__title">{n.title}</p>
+                              {n.message && <p className="pp-notif-item__msg">{n.message}</p>}
+                              <p className="pp-notif-item__time">
+                                {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="pp-avatar">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element

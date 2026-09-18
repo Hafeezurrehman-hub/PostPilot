@@ -43,6 +43,7 @@ export default function DashboardPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [connectedCount, setConnectedCount] = useState(0)
   const [totalReach, setTotalReach] = useState<number | null>(null)
+  const [userName, setUserName] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function DashboardPage() {
         return
       }
 
-      const [{ data: postsData }, { count: connectionsCount }] = await Promise.all([
+      const [{ data: postsData }, { count: connectionsCount }, { data: profileData }] = await Promise.all([
         supabase
           .from('posts')
           .select('id, content, platforms, status, scheduled_for, published_at, created_at')
@@ -66,9 +67,17 @@ export default function DashboardPage() {
           .from('platform_connections')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id),
+        supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single(),
       ])
 
       if (!isMounted) return
+
+      const firstName = profileData?.full_name?.trim().split(/\s+/)[0]
+      setUserName(firstName || null)
 
       const fetchedPosts = (postsData as Post[]) || []
       setPosts(fetchedPosts)
@@ -98,6 +107,10 @@ export default function DashboardPage() {
     load()
     return () => { isMounted = false }
   }, [supabase])
+
+  const hour = new Date().getHours()
+  const timeGreeting = hour < 12 ? t('dashboard.greetingMorning') : hour < 17 ? t('dashboard.greetingAfternoon') : t('dashboard.greetingEvening')
+  const greeting = userName ? `${timeGreeting}, ${userName}` : timeGreeting
 
   const publishedCount = posts.filter(p => p.status === 'published').length
   const scheduledCount = posts.filter(p => p.status === 'scheduled').length
@@ -133,7 +146,7 @@ export default function DashboardPage() {
       {/* Welcome */}
       <div className="pp-welcome">
         <div>
-          <h1 className="pp-welcome__heading">{t('dashboard.greeting')} 👋</h1>
+          <h1 className="pp-welcome__heading">{greeting} 👋</h1>
           <p className="pp-welcome__sub">
             {t('dashboard.subGreeting', { count: scheduledCount, plural: scheduledCount === 1 ? '' : 's' })}
           </p>
