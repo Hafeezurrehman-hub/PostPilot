@@ -123,9 +123,25 @@ export default function SettingsPage() {
 
   const handleSaveProfile = async () => {
     setSaving(true)
-    await new Promise(r => setTimeout(r, 800))
-    setSaving(false)
-    toast.success('Profile updated!')
+    const tid = toast.loading('Saving...')
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('You must be logged in.', { id: tid })
+        return
+      }
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, full_name: name, bio, timezone }, { onConflict: 'id' })
+
+      if (error) {
+        toast.error(`Could not save: ${error.message}`, { id: tid })
+        return
+      }
+      toast.success('Profile updated!', { id: tid })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleThemeChange = (t: 'dark' | 'light') => {
